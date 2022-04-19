@@ -4,7 +4,7 @@ A simple exporter for metal-api metrics.
 
 ## sample output
 
-```json
+```text
 # HELP metal_image_used_total The total number of machines using a image
 # TYPE metal_image_used_total gauge
 metal_image_used_total{classification="preview",created="1588078965",expirationDate="1598533365",features="firewall",imageID="firewall-ubuntu-2.0.20200331",name="Firewall 2 Ubuntu 20200331"} 2
