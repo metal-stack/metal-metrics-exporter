@@ -85,6 +85,15 @@ func newMetalCollector(driver *metalgo.Driver) *metalCollector {
 
 func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.networkInfo
+	ch <- collector.usedIps
+	ch <- collector.availableIps
+	ch <- collector.usedPrefixes
+	ch <- collector.availablePrefixes
+	ch <- collector.partitionCapacityTotal
+	ch <- collector.partitionCapacityFree
+	ch <- collector.partitionCapacityAllocated
+	ch <- collector.partitionCapacityFaulty
+	ch <- collector.usedImage
 }
 
 func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
