@@ -30,7 +30,7 @@ type metalCollector struct {
 func newMetalCollector(driver *metalgo.Driver) *metalCollector {
 	return &metalCollector{
 		networkInfo: prometheus.NewDesc("metal_network_info",
-			"Shows available prefixes in a network",
+			"Provide information about the network",
 			[]string{"networkId", "name", "projectId", "description", "partition", "vrf", "prefixes", "destPrefixes", "parentNetworkID", "isPrivateSuper", "useNat", "isUnderlay"}, nil,
 		),
 		usedIps: prometheus.NewDesc(
