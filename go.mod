@@ -1,6 +1,6 @@
 module github.com/metal-stack/metal-metrics-exporter
 
-go 1.17
+go 1.18
 
 require (
 	github.com/metal-stack/metal-go v0.16.3
