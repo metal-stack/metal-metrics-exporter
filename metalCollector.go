@@ -18,11 +18,11 @@ type metalCollector struct {
 	usedPrefixes      *prometheus.Desc
 	availablePrefixes *prometheus.Desc
 
-	partitionCapacityTotal     *prometheus.Desc
-	partitionCapacityFree      *prometheus.Desc
-	partitionCapacityAllocated *prometheus.Desc
-	partitionCapacityFaulty    *prometheus.Desc
-	usedImage                  *prometheus.Desc
+	capacityTotal     *prometheus.Desc
+	capacityFree      *prometheus.Desc
+	capacityAllocated *prometheus.Desc
+	capacityFaulty    *prometheus.Desc
+	usedImage         *prometheus.Desc
 
 	driver *metalgo.Driver
 }
@@ -53,24 +53,24 @@ func newMetalCollector(driver *metalgo.Driver) *metalCollector {
 			"The total number of available prefixes of the network",
 			[]string{"networkId"}, nil,
 		),
-		partitionCapacityTotal: prometheus.NewDesc(
-			"metal_partition_partitionCapacity_total",
-			"The total partitionCapacity of machines in the partition",
+		capacityTotal: prometheus.NewDesc(
+			"metal_partition_capacity_total",
+			"The total capacity of machines in the partition",
 			[]string{"partition", "size"}, nil,
 		),
-		partitionCapacityFree: prometheus.NewDesc(
-			"metal_partition_partitionCapacity_free",
-			"The partitionCapacity of free machines in the partition",
+		capacityFree: prometheus.NewDesc(
+			"metal_partition_capacity_free",
+			"The capacity of free machines in the partition",
 			[]string{"partition", "size"}, nil,
 		),
-		partitionCapacityAllocated: prometheus.NewDesc(
-			"metal_partition_partitionCapacity_allocated",
-			"The partitionCapacity of allocated machines in the partition",
+		capacityAllocated: prometheus.NewDesc(
+			"metal_partition_capacity_allocated",
+			"The capacity of allocated machines in the partition",
 			[]string{"partition", "size"}, nil,
 		),
-		partitionCapacityFaulty: prometheus.NewDesc(
-			"metal_partition_partitionCapacity_faulty",
-			"The partitionCapacity of faulty machines in the partition",
+		capacityFaulty: prometheus.NewDesc(
+			"metal_partition_capacity_faulty",
+			"The capacity of faulty machines in the partition",
 			[]string{"partition", "size"}, nil,
 		),
 		usedImage: prometheus.NewDesc(
@@ -89,10 +89,10 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.availableIps
 	ch <- collector.usedPrefixes
 	ch <- collector.availablePrefixes
-	ch <- collector.partitionCapacityTotal
-	ch <- collector.partitionCapacityFree
-	ch <- collector.partitionCapacityAllocated
-	ch <- collector.partitionCapacityFaulty
+	ch <- collector.capacityTotal
+	ch <- collector.capacityFree
+	ch <- collector.capacityAllocated
+	ch <- collector.capacityFaulty
 	ch <- collector.usedImage
 }
 
@@ -123,10 +123,10 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 	for _, p := range caps.Capacity {
 		for _, s := range p.Servers {
-			ch <- prometheus.MustNewConstMetric(collector.partitionCapacityTotal, prometheus.GaugeValue, float64(*s.Total), *p.ID, *s.Size)
-			ch <- prometheus.MustNewConstMetric(collector.partitionCapacityAllocated, prometheus.GaugeValue, float64(*s.Allocated), *p.ID, *s.Size)
-			ch <- prometheus.MustNewConstMetric(collector.partitionCapacityFree, prometheus.GaugeValue, float64(*s.Free), *p.ID, *s.Size)
-			ch <- prometheus.MustNewConstMetric(collector.partitionCapacityFaulty, prometheus.GaugeValue, float64(*s.Faulty), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityTotal, prometheus.GaugeValue, float64(*s.Total), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityAllocated, prometheus.GaugeValue, float64(*s.Allocated), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityFree, prometheus.GaugeValue, float64(*s.Free), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityFaulty, prometheus.GaugeValue, float64(*s.Faulty), *p.ID, *s.Size)
 		}
 	}
 

@@ -29,19 +29,19 @@ metal_network_prefix_available{networkId="020966ab-18da-40d6-ba69-fea8d60e6074"}
 # TYPE metal_network_prefix_used gauge
 metal_network_prefix_used{networkId="020966ab-18da-40d6-ba69-fea8d60e6074"} 0
 
-# HELP metal_partition_partitionCapacity_allocated The partitionCapacity of allocated machines in the partition
-# TYPE metal_partition_partitionCapacity_allocated gauge
-metal_partition_partitionCapacity_allocated{partition="fel-wps101",size="c1-xlarge-x86"} 148
+# HELP metal_partition_capacity_allocated The capacity of allocated machines in the partition
+# TYPE metal_partition_capacity_allocated gauge
+metal_partition_capacity_allocated{partition="fel-wps101",size="c1-xlarge-x86"} 148
 
-# HELP metal_partition_partitionCapacity_faulty The partitionCapacity of faulty machines in the partition
-# TYPE metal_partition_partitionCapacity_faulty gauge
-metal_partition_partitionCapacity_faulty{partition="fel-wps101",size="c1-xlarge-x86"} 2
+# HELP metal_partition_capacity_faulty The capacity of faulty machines in the partition
+# TYPE metal_partition_capacity_faulty gauge
+metal_partition_capacity_faulty{partition="fel-wps101",size="c1-xlarge-x86"} 2
 
-# HELP metal_partition_partitionCapacity_free The partitionCapacity of free machines in the partition
-# TYPE metal_partition_partitionCapacity_free gauge
-metal_partition_partitionCapacity_free{partition="fel-wps101",size="c1-xlarge-x86"} 5
+# HELP metal_partition_capacity_free The capacity of free machines in the partition
+# TYPE metal_partition_capacity_free gauge
+metal_partition_capacity_free{partition="fel-wps101",size="c1-xlarge-x86"} 5
 
-# HELP metal_partition_partitionCapacity_total The total partitionCapacity of machines in the partition
-# TYPE metal_partition_partitionCapacity_total gauge
-metal_partition_partitionCapacity_total{partition="fel-wps101",size="c1-xlarge-x86"} 159
+# HELP metal_partition_capacity_total The total capacity of machines in the partition
+# TYPE metal_partition_capacity_total gauge
+metal_partition_capacity_total{partition="fel-wps101",size="c1-xlarge-x86"} 159
 ```
