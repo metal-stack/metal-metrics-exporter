@@ -33,4 +33,4 @@ jobs:
     - name: Build and push Docker image
       run: |
         docker build -t ghcr.io/metal-stack/metal-metrics-exporter:${GITHUB_REF##*/} .
-        docker push ghcr.io/metal-stack/metal-metal-metrics:${GITHUB_REF##*/}
+        docker push ghcr.io/metal-stack/metal-metrics-exporter:${GITHUB_REF##*/}
