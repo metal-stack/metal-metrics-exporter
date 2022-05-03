@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metal-metrics-exporter
+  labels:
+    app: metal-metrics-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: metal-metrics-exporter
+  template:
+    metadata:
+      labels:
+        app: metal-metrics-exporter
+    spec:
+      securityContext:
+        runAsUser: 999
+      containers:
+        - name: metal-metrics-exporter
+          command:
+            - /metal-metrics-exporter
+          args:
+            - start
+          image: ghcr.io/metal-stack/metal-metrics-exporter:latest
+          ports:
+            - containerPort: 9080
+              name: metrics
+          env:
+            - name: METAL_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: metal-metrics-exporter-config
+                  key: url
+            - name: METAL_API_HMAC
+              valueFrom:
+                secretKeyRef:
+                  name: metal-metrics-exporter-config
+                  key: hmac
