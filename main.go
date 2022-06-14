@@ -17,13 +17,13 @@ func main() {
 	url := os.Getenv("METAL_API_URL")
 	hmac := os.Getenv("METAL_API_HMAC")
 
-	driver, err := metalgo.NewDriver(url, "", hmac)
+	client, _, err := metalgo.NewDriver(url, "", hmac)
 	if err != nil {
 		fmt.Print(err)
 		os.Exit(1)
 	}
 
-	metalCollector := newMetalCollector(driver)
+	metalCollector := newMetalCollector(client)
 	prometheus.MustRegister(metalCollector)
 
 	http.Handle("/metrics", promhttp.Handler())

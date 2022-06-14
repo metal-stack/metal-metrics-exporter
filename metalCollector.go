@@ -7,6 +7,10 @@ import (
 	"time"
 
 	metalgo "github.com/metal-stack/metal-go"
+	"github.com/metal-stack/metal-go/api/client/image"
+	"github.com/metal-stack/metal-go/api/client/network"
+	"github.com/metal-stack/metal-go/api/client/partition"
+	"k8s.io/utils/pointer"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -24,10 +28,10 @@ type metalCollector struct {
 	capacityFaulty    *prometheus.Desc
 	usedImage         *prometheus.Desc
 
-	driver *metalgo.Driver
+	client metalgo.Client
 }
 
-func newMetalCollector(driver *metalgo.Driver) *metalCollector {
+func newMetalCollector(client metalgo.Client) *metalCollector {
 	return &metalCollector{
 		networkInfo: prometheus.NewDesc("metal_network_info",
 			"Provide information about the network",
@@ -79,7 +83,7 @@ func newMetalCollector(driver *metalgo.Driver) *metalCollector {
 			[]string{"imageID", "name", "classification", "created", "expirationDate", "features"}, nil,
 		),
 
-		driver: driver,
+		client: client,
 	}
 }
 
@@ -97,11 +101,11 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
-	networks, err := collector.driver.NetworkList()
+	networks, err := collector.client.Network().ListNetworks(network.NewListNetworksParams(), nil)
 	if err != nil {
 		panic(err)
 	}
-	for _, n := range networks.Networks {
+	for _, n := range networks.Payload {
 		privateSuper := fmt.Sprintf("%t", *n.Privatesuper)
 		nat := fmt.Sprintf("%t", *n.Nat)
 		underlay := fmt.Sprintf("%t", *n.Underlay)
@@ -117,11 +121,11 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(collector.availablePrefixes, prometheus.GaugeValue, float64(*n.Usage.AvailablePrefixes), *n.ID)
 	}
 
-	caps, err := collector.driver.PartitionCapacity(metalgo.PartitionCapacityRequest{})
+	caps, err := collector.client.Partition().PartitionCapacity(partition.NewPartitionCapacityParams(), nil)
 	if err != nil {
 		panic(err)
 	}
-	for _, p := range caps.Capacity {
+	for _, p := range caps.Payload {
 		for _, s := range p.Servers {
 			ch <- prometheus.MustNewConstMetric(collector.capacityTotal, prometheus.GaugeValue, float64(*s.Total), *p.ID, *s.Size)
 			ch <- prometheus.MustNewConstMetric(collector.capacityAllocated, prometheus.GaugeValue, float64(*s.Allocated), *p.ID, *s.Size)
@@ -130,11 +134,13 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	images, err := collector.driver.ImageListWithUsage()
+	imageParams := image.NewListImagesParams()
+	imageParams.SetShowUsage(pointer.BoolPtr(true))
+	images, err := collector.client.Image().ListImages(imageParams, nil)
 	if err != nil {
 		panic(err)
 	}
-	for _, i := range images.Image {
+	for _, i := range images.Payload {
 		usage := len(i.Usedby)
 		created := fmt.Sprintf("%d", time.Time(i.Created).Unix())
 		expirationDate := ""
