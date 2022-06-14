@@ -10,6 +10,7 @@ import (
 	"github.com/metal-stack/metal-go/api/client/image"
 	"github.com/metal-stack/metal-go/api/client/network"
 	"github.com/metal-stack/metal-go/api/client/partition"
+	"github.com/metal-stack/metal-go/api/models"
 	"k8s.io/utils/pointer"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -121,7 +122,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(collector.availablePrefixes, prometheus.GaugeValue, float64(*n.Usage.AvailablePrefixes), *n.ID)
 	}
 
-	caps, err := collector.client.Partition().PartitionCapacity(partition.NewPartitionCapacityParams(), nil)
+	caps, err := collector.client.Partition().PartitionCapacity(partition.NewPartitionCapacityParams().WithBody(&models.V1PartitionCapacityRequest{}), nil)
 	if err != nil {
 		panic(err)
 	}
