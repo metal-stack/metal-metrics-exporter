@@ -7,7 +7,7 @@ RUN make metal-metrics-exporter
 
 FROM alpine:3.16
 COPY --from=builder /work/bin/metal-metrics-exporter /metal-metrics-exporter
-USER root
+USER 999
 ENTRYPOINT ["/metal-metrics-exporter"]
 
 EXPOSE 9080
