@@ -14,8 +14,7 @@ spec:
       labels:
         app: metal-metrics-exporter
     spec:
-      securityContext:
-        runAsUser: 999
+      automountServiceAccountToken: false
       containers:
         - name: metal-metrics-exporter
           command:
@@ -37,3 +36,7 @@ spec:
                 secretKeyRef:
                   name: metal-metrics-exporter-config
                   key: hmac
+          securityContext:
+            runAsUser: 999
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
