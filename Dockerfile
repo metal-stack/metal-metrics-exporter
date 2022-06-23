@@ -1,11 +1,10 @@
 
-FROM golang:1.18-alpine as builder
-RUN apk add make binutils
+FROM golang:1.18 as builder
 COPY / /work
 WORKDIR /work
 RUN make metal-metrics-exporter
 
-FROM alpine:3.16
+FROM gcr.io/distroless/static-debian11:nonroot
 COPY --from=builder /work/bin/metal-metrics-exporter /metal-metrics-exporter
 USER 999
 ENTRYPOINT ["/metal-metrics-exporter"]
