@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	metalgo "github.com/metal-stack/metal-go"
 
@@ -28,5 +29,9 @@ func main() {
 
 	http.Handle("/metrics", promhttp.Handler())
 	klog.Info("Beginning to serve on port :9080")
-	klog.Fatal(http.ListenAndServe(":9080", nil))
+	server := &http.Server{
+		Addr:              ":9080",
+		ReadHeaderTimeout: 1 * time.Minute,
+	}
+	klog.Fatal(server.ListenAndServe())
 }
