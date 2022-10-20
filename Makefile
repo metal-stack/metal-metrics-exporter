@@ -5,7 +5,7 @@ all: metal-metrics-exporter
 
 .PHONY: metal-metrics-exporter
 metal-metrics-exporter:
-	go build -o bin/metal-metrics-exporter *.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/metal-metrics-exporter *.go
 	strip bin/metal-metrics-exporter
 
 .PHONY: clean
