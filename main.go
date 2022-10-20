@@ -17,7 +17,7 @@ func main() {
 	url := os.Getenv("METAL_API_URL")
 	hmac := os.Getenv("METAL_API_HMAC")
 
-	client, _, err := metalgo.NewDriver(url, "", hmac)
+	client, err := metalgo.NewDriver(url, "", hmac)
 	if err != nil {
 		fmt.Print(err)
 		os.Exit(1)
