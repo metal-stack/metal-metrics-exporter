@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	metalgo "github.com/metal-stack/metal-go"
 
@@ -17,7 +18,7 @@ func main() {
 	url := os.Getenv("METAL_API_URL")
 	hmac := os.Getenv("METAL_API_HMAC")
 
-	client, _, err := metalgo.NewDriver(url, "", hmac)
+	client, err := metalgo.NewDriver(url, "", hmac)
 	if err != nil {
 		fmt.Print(err)
 		os.Exit(1)
@@ -28,5 +29,9 @@ func main() {
 
 	http.Handle("/metrics", promhttp.Handler())
 	klog.Info("Beginning to serve on port :9080")
-	klog.Fatal(http.ListenAndServe(":9080", nil))
+	server := &http.Server{
+		Addr:              ":9080",
+		ReadHeaderTimeout: 1 * time.Minute,
+	}
+	klog.Fatal(server.ListenAndServe())
 }

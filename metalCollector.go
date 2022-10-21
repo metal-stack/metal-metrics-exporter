@@ -10,6 +10,7 @@ import (
 	"github.com/metal-stack/metal-go/api/client/image"
 	"github.com/metal-stack/metal-go/api/client/network"
 	"github.com/metal-stack/metal-go/api/client/partition"
+	"github.com/metal-stack/metal-go/api/client/switch_operations"
 	"github.com/metal-stack/metal-go/api/models"
 	"k8s.io/utils/pointer"
 
@@ -28,6 +29,8 @@ type metalCollector struct {
 	capacityAllocated *prometheus.Desc
 	capacityFaulty    *prometheus.Desc
 	usedImage         *prometheus.Desc
+
+	switchInterfaceInfo *prometheus.Desc
 
 	client metalgo.Client
 }
@@ -82,6 +85,11 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"metal_image_used_total",
 			"The total number of machines using a image",
 			[]string{"imageID", "name", "classification", "created", "expirationDate", "features"}, nil,
+		),
+		switchInterfaceInfo: prometheus.NewDesc(
+			"metal_switch_interface_info",
+			"Provide information about the network",
+			[]string{"switchname", "device", "machineid", "partition"}, nil,
 		),
 
 		client: client,
@@ -150,5 +158,15 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 		features := strings.Join(i.Features, ",")
 		ch <- prometheus.MustNewConstMetric(collector.usedImage, prometheus.GaugeValue, float64(usage), *i.ID, i.Name, i.Classification, created, expirationDate, features)
+	}
+
+	switches, err := collector.client.SwitchOperations().ListSwitches(switch_operations.NewListSwitchesParams(), nil)
+	if err != nil {
+		panic(err)
+	}
+	for _, s := range switches.Payload {
+		for _, c := range s.Connections {
+			ch <- prometheus.MustNewConstMetric(collector.switchInterfaceInfo, prometheus.GaugeValue, 1.0, s.Name, *c.Nic.Name, c.MachineID, *s.Partition.ID)
+		}
 	}
 }
