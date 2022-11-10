@@ -8,6 +8,7 @@ import (
 
 	metalgo "github.com/metal-stack/metal-go"
 	"github.com/metal-stack/metal-go/api/client/image"
+	"github.com/metal-stack/metal-go/api/client/machine"
 	"github.com/metal-stack/metal-go/api/client/network"
 	"github.com/metal-stack/metal-go/api/client/partition"
 	"github.com/metal-stack/metal-go/api/client/switch_operations"
@@ -89,7 +90,7 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		switchInterfaceInfo: prometheus.NewDesc(
 			"metal_switch_interface_info",
 			"Provide information about the network",
-			[]string{"switchname", "device", "machineid", "partition"}, nil,
+			[]string{"switchname", "device", "machineid", "partition", "machinename"}, nil,
 		),
 
 		client: client,
@@ -144,7 +145,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	imageParams := image.NewListImagesParams()
-	imageParams.SetShowUsage(pointer.BoolPtr(true))
+	imageParams.SetShowUsage(pointer.Bool(true))
 	images, err := collector.client.Image().ListImages(imageParams, nil)
 	if err != nil {
 		panic(err)
@@ -160,13 +161,27 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(collector.usedImage, prometheus.GaugeValue, float64(usage), *i.ID, i.Name, i.Classification, created, expirationDate, features)
 	}
 
+	// get list of machine names
+	machineName := make(map[string]string)
+
+	resp, err := collector.client.Machine().FindMachines(machine.NewFindMachinesParams().WithBody(&models.V1MachineFindRequest{}), nil)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, m := range resp.Payload {
+		if m.ID != nil && m.Allocation != nil && m.Allocation.Name != nil {
+			machineName[*m.ID] = *m.Allocation.Name
+		}
+	}
+
 	switches, err := collector.client.SwitchOperations().ListSwitches(switch_operations.NewListSwitchesParams(), nil)
 	if err != nil {
 		panic(err)
 	}
 	for _, s := range switches.Payload {
 		for _, c := range s.Connections {
-			ch <- prometheus.MustNewConstMetric(collector.switchInterfaceInfo, prometheus.GaugeValue, 1.0, s.Name, *c.Nic.Name, c.MachineID, *s.Partition.ID)
+			ch <- prometheus.MustNewConstMetric(collector.switchInterfaceInfo, prometheus.GaugeValue, 1.0, s.Name, *c.Nic.Name, c.MachineID, *s.Partition.ID, machineName[c.MachineID])
 		}
 	}
 }
