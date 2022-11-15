@@ -39,7 +39,7 @@ require (
 	github.com/lestrrat-go/option v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-	github.com/metal-stack/metal-lib v0.11.2 // indirect
+	github.com/metal-stack/metal-lib v0.11.2
 	github.com/metal-stack/security v0.6.5 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
