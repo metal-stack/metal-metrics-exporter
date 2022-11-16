@@ -185,7 +185,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	for _, m := range machines.Payload {
-		if m.ID != nil && m.Allocation != nil && m.Allocation.Name != nil {
+		if m.ID != nil && m.Allocation != nil && m.Allocation.Hostname != nil {
 
 			clusterTag := ""
 			primaryASN := ""
@@ -201,7 +201,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 				}
 			}
 
-			ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, *m.Partition.ID, *m.Allocation.Name, clusterTag, primaryASN, *m.Allocation.Role)
+			ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, *m.Partition.ID, *m.Allocation.Hostname, clusterTag, primaryASN, *m.Allocation.Role)
 		} else if m.ID != nil && m.Partition != nil && m.Partition.ID != nil {
 			ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, *m.Partition.ID, "NOTALLOCATED", "NOTALLOCATED", "NOTALLOCATED", "NOTALLOCATED")
 		}
