@@ -8,10 +8,12 @@ import (
 
 	metalgo "github.com/metal-stack/metal-go"
 	"github.com/metal-stack/metal-go/api/client/image"
+	"github.com/metal-stack/metal-go/api/client/machine"
 	"github.com/metal-stack/metal-go/api/client/network"
 	"github.com/metal-stack/metal-go/api/client/partition"
 	"github.com/metal-stack/metal-go/api/client/switch_operations"
 	"github.com/metal-stack/metal-go/api/models"
+	metaltag "github.com/metal-stack/metal-lib/pkg/tag"
 	"k8s.io/utils/pointer"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -31,6 +33,8 @@ type metalCollector struct {
 	usedImage         *prometheus.Desc
 
 	switchInterfaceInfo *prometheus.Desc
+
+	machineAllocationInfo *prometheus.Desc
 
 	client metalgo.Client
 }
@@ -91,6 +95,11 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"Provide information about the network",
 			[]string{"switchname", "device", "machineid", "partition"}, nil,
 		),
+		machineAllocationInfo: prometheus.NewDesc(
+			"metal_machine_allocation_info",
+			"Provide information about the machine allocation",
+			[]string{"machineid", "partition", "machinename", "clusterTag", "primaryASN", "role"}, nil,
+		),
 
 		client: client,
 	}
@@ -144,7 +153,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	imageParams := image.NewListImagesParams()
-	imageParams.SetShowUsage(pointer.BoolPtr(true))
+	imageParams.SetShowUsage(pointer.Bool(true))
 	images, err := collector.client.Image().ListImages(imageParams, nil)
 	if err != nil {
 		panic(err)
@@ -169,4 +178,33 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(collector.switchInterfaceInfo, prometheus.GaugeValue, 1.0, s.Name, *c.Nic.Name, c.MachineID, *s.Partition.ID)
 		}
 	}
+
+	machines, err := collector.client.Machine().FindMachines(machine.NewFindMachinesParams().WithBody(&models.V1MachineFindRequest{}), nil)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, m := range machines.Payload {
+		if m.ID != nil && m.Allocation != nil && m.Allocation.Hostname != nil {
+
+			clusterTag := ""
+			primaryASN := ""
+			for _, t := range m.Tags {
+				tag, value, found := strings.Cut(t, "=")
+				if found {
+					switch tag {
+					case metaltag.ClusterID:
+						clusterTag = value
+					case metaltag.MachineNetworkPrimaryASN:
+						primaryASN = value
+					}
+				}
+			}
+
+			ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, *m.Partition.ID, *m.Allocation.Hostname, clusterTag, primaryASN, *m.Allocation.Role)
+		} else if m.ID != nil && m.Partition != nil && m.Partition.ID != nil {
+			ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, *m.Partition.ID, "NOTALLOCATED", "NOTALLOCATED", "NOTALLOCATED", "NOTALLOCATED")
+		}
+	}
+
 }
