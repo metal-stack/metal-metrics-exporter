@@ -13,8 +13,8 @@ import (
 	"github.com/metal-stack/metal-go/api/client/partition"
 	"github.com/metal-stack/metal-go/api/client/switch_operations"
 	"github.com/metal-stack/metal-go/api/models"
+	"github.com/metal-stack/metal-lib/pkg/pointer"
 	metaltag "github.com/metal-stack/metal-lib/pkg/tag"
-	"k8s.io/utils/pointer"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -33,6 +33,8 @@ type metalCollector struct {
 	usedImage         *prometheus.Desc
 
 	switchInterfaceInfo *prometheus.Desc
+	switchSyncFailed    *prometheus.Desc
+	switchSyncDurations *prometheus.Desc
 
 	machineAllocationInfo *prometheus.Desc
 
@@ -95,6 +97,16 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"Provide information about the network",
 			[]string{"switchname", "device", "machineid", "partition"}, nil,
 		),
+		switchSyncFailed: prometheus.NewDesc(
+			"metal_switch_sync_failed",
+			"1 when the switch sync is failing, otherwise 0",
+			[]string{}, nil,
+		),
+		switchSyncDurations: prometheus.NewDesc(
+			"metal_switch_sync_durations",
+			"The duration of the syncs",
+			[]string{"switchname", "partition", "rackid"}, nil,
+		),
 		machineAllocationInfo: prometheus.NewDesc(
 			"metal_machine_allocation_info",
 			"Provide information about the machine allocation",
@@ -116,6 +128,10 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.capacityAllocated
 	ch <- collector.capacityFaulty
 	ch <- collector.usedImage
+	ch <- collector.switchInterfaceInfo
+	ch <- collector.switchSyncFailed
+	ch <- collector.switchSyncDurations
+	ch <- collector.machineAllocationInfo
 }
 
 func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
@@ -153,7 +169,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	imageParams := image.NewListImagesParams()
-	imageParams.SetShowUsage(pointer.Bool(true))
+	imageParams.SetShowUsage(pointer.Pointer(true))
 	images, err := collector.client.Image().ListImages(imageParams, nil)
 	if err != nil {
 		panic(err)
@@ -174,6 +190,22 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		panic(err)
 	}
 	for _, s := range switches.Payload {
+		var (
+			lastSync      = time.Time(pointer.SafeDeref(pointer.SafeDeref(s.LastSync).Time))
+			lastSyncError = time.Time(pointer.SafeDeref(pointer.SafeDeref(s.LastSyncError).Time))
+
+			syncFailed       = 0.0
+			lastSyncDuration = float64(pointer.SafeDeref(pointer.SafeDeref(s.LastSync).Duration))
+		)
+
+		if lastSyncError.After(lastSync) {
+			syncFailed = 1.0
+			lastSyncDuration = float64(pointer.SafeDeref(pointer.SafeDeref(s.LastSyncError).Duration))
+		}
+
+		ch <- prometheus.MustNewConstMetric(collector.switchSyncFailed, prometheus.GaugeValue, syncFailed, s.Name, *s.Partition.ID, *s.RackID)
+		ch <- prometheus.MustNewConstMetric(collector.switchSyncDurations, prometheus.GaugeValue, lastSyncDuration, s.Name, *s.Partition.ID, *s.RackID)
+
 		for _, c := range s.Connections {
 			ch <- prometheus.MustNewConstMetric(collector.switchInterfaceInfo, prometheus.GaugeValue, 1.0, s.Name, *c.Nic.Name, c.MachineID, *s.Partition.ID)
 		}

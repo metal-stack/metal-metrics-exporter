@@ -1,5 +1,5 @@
 
-FROM golang:1.20 as builder
+FROM golang:1.21 as builder
 COPY / /work
 WORKDIR /work
 RUN make metal-metrics-exporter
