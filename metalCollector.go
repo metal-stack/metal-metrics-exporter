@@ -100,7 +100,7 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		switchSyncFailed: prometheus.NewDesc(
 			"metal_switch_sync_failed",
 			"1 when the switch sync is failing, otherwise 0",
-			[]string{}, nil,
+			[]string{"switchname", "partition", "rackid"}, nil,
 		),
 		switchSyncDurations: prometheus.NewDesc(
 			"metal_switch_sync_durations",
