@@ -34,6 +34,7 @@ type metalCollector struct {
 
 	switchInfo            *prometheus.Desc
 	switchInterfaceInfo   *prometheus.Desc
+	switchMetalCoreUp     *prometheus.Desc
 	switchSyncFailed      *prometheus.Desc
 	switchSyncDurationsMs *prometheus.Desc
 
@@ -103,6 +104,11 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"Provide information about the network",
 			[]string{"switchname", "device", "machineid", "partition"}, nil,
 		),
+		switchMetalCoreUp: prometheus.NewDesc(
+			"metal_switch_metal_core_up",
+			"1 when the metal-core is up, otherwise 0",
+			[]string{"switchname", "partition", "rackid"}, nil,
+		),
 		switchSyncFailed: prometheus.NewDesc(
 			"metal_switch_sync_failed",
 			"1 when the switch sync is failing, otherwise 0",
@@ -136,6 +142,7 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.usedImage
 	ch <- collector.switchInfo
 	ch <- collector.switchInterfaceInfo
+	ch <- collector.switchMetalCoreUp
 	ch <- collector.switchSyncFailed
 	ch <- collector.switchSyncDurationsMs
 	ch <- collector.machineAllocationInfo
@@ -211,6 +218,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			osVersion   = pointer.SafeDeref(s.Os).Version
 			// metal core version is very long: v0.9.1 (1d5e42ea), tags/v0.9.1-0-g1d5e42e, go1.20.5
 			metalCoreVersion = strings.Split(pointer.SafeDeref(s.Os).MetalCoreVersion, ",")[0]
+			metalCoreUp      = 1.0
 			managementIP     = s.ManagementIP
 		)
 
@@ -220,6 +228,11 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			lastSync = lastSyncError
 		}
 
+		if time.Since(lastSync) > 1*time.Minute {
+			metalCoreUp = 0.0
+		}
+
+		ch <- prometheus.MustNewConstMetric(collector.switchMetalCoreUp, prometheus.GaugeValue, metalCoreUp, s.Name, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
 		ch <- prometheus.MustNewConstMetric(collector.switchSyncFailed, prometheus.GaugeValue, syncFailed, s.Name, partitionID, rackID)
 		ch <- prometheus.NewMetricWithTimestamp(lastSync, prometheus.MustNewConstMetric(collector.switchSyncDurationsMs, prometheus.GaugeValue, lastSyncDurationMs, s.Name, partitionID, rackID))
 		ch <- prometheus.MustNewConstMetric(collector.switchInfo, prometheus.GaugeValue, 1.0, s.Name, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
