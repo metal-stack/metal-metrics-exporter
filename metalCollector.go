@@ -32,10 +32,10 @@ type metalCollector struct {
 	capacityFaulty    *prometheus.Desc
 	usedImage         *prometheus.Desc
 
-	switchInfo          *prometheus.Desc
-	switchInterfaceInfo *prometheus.Desc
-	switchSyncFailed    *prometheus.Desc
-	switchSyncDurations *prometheus.Desc
+	switchInfo            *prometheus.Desc
+	switchInterfaceInfo   *prometheus.Desc
+	switchSyncFailed      *prometheus.Desc
+	switchSyncDurationsMs *prometheus.Desc
 
 	machineAllocationInfo *prometheus.Desc
 
@@ -108,8 +108,8 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"1 when the switch sync is failing, otherwise 0",
 			[]string{"switchname", "partition", "rackid"}, nil,
 		),
-		switchSyncDurations: prometheus.NewDesc(
-			"metal_switch_sync_durations",
+		switchSyncDurationsMs: prometheus.NewDesc(
+			"metal_switch_sync_durations_ms",
 			"The duration of the syncs",
 			[]string{"switchname", "partition", "rackid"}, nil,
 		),
@@ -137,7 +137,7 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.switchInfo
 	ch <- collector.switchInterfaceInfo
 	ch <- collector.switchSyncFailed
-	ch <- collector.switchSyncDurations
+	ch <- collector.switchSyncDurationsMs
 	ch <- collector.machineAllocationInfo
 }
 
@@ -201,8 +201,9 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			lastSync      = time.Time(pointer.SafeDeref(pointer.SafeDeref(s.LastSync).Time))
 			lastSyncError = time.Time(pointer.SafeDeref(pointer.SafeDeref(s.LastSyncError).Time))
 
-			syncFailed       = 0.0
-			lastSyncDuration = float64(pointer.SafeDeref(pointer.SafeDeref(s.LastSync).Duration))
+			syncFailed              = 0.0
+			lastSyncDurationMs      = float64(time.Duration(pointer.SafeDeref(pointer.SafeDeref(s.LastSync).Duration)).Milliseconds())
+			lastSyncErrorDurationMs = float64(time.Duration(pointer.SafeDeref(pointer.SafeDeref(s.LastSyncError).Duration)).Milliseconds())
 
 			partitionID = pointer.SafeDeref(pointer.SafeDeref(s.Partition).ID)
 			rackID      = pointer.SafeDeref(s.RackID)
@@ -215,11 +216,11 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 
 		if lastSyncError.After(lastSync) {
 			syncFailed = 1.0
-			lastSyncDuration = float64(pointer.SafeDeref(pointer.SafeDeref(s.LastSyncError).Duration))
+			lastSyncDurationMs = lastSyncErrorDurationMs
 		}
 
 		ch <- prometheus.MustNewConstMetric(collector.switchSyncFailed, prometheus.GaugeValue, syncFailed, s.Name, partitionID, rackID)
-		ch <- prometheus.MustNewConstMetric(collector.switchSyncDurations, prometheus.GaugeValue, lastSyncDuration, s.Name, partitionID, rackID)
+		ch <- prometheus.MustNewConstMetric(collector.switchSyncDurationsMs, prometheus.GaugeValue, lastSyncDurationMs, s.Name, partitionID, rackID)
 		ch <- prometheus.MustNewConstMetric(collector.switchInfo, prometheus.GaugeValue, 1.0, s.Name, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
 
 		for _, c := range s.Connections {
