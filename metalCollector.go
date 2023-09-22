@@ -217,10 +217,11 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		if lastSyncError.After(lastSync) {
 			syncFailed = 1.0
 			lastSyncDurationMs = lastSyncErrorDurationMs
+			lastSync = lastSyncError
 		}
 
 		ch <- prometheus.MustNewConstMetric(collector.switchSyncFailed, prometheus.GaugeValue, syncFailed, s.Name, partitionID, rackID)
-		ch <- prometheus.MustNewConstMetric(collector.switchSyncDurationsMs, prometheus.GaugeValue, lastSyncDurationMs, s.Name, partitionID, rackID)
+		ch <- prometheus.NewMetricWithTimestamp(lastSync, prometheus.MustNewConstMetric(collector.switchSyncDurationsMs, prometheus.GaugeValue, lastSyncDurationMs, s.Name, partitionID, rackID))
 		ch <- prometheus.MustNewConstMetric(collector.switchInfo, prometheus.GaugeValue, 1.0, s.Name, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
 
 		for _, c := range s.Connections {
