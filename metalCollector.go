@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/metal-stack/metal-go/api/client/project"
 	metalgo "github.com/metal-stack/metal-go"
 	"github.com/metal-stack/metal-go/api/client/image"
 	"github.com/metal-stack/metal-go/api/client/machine"
 	"github.com/metal-stack/metal-go/api/client/network"
 	"github.com/metal-stack/metal-go/api/client/partition"
+	"github.com/metal-stack/metal-go/api/client/project"
 	"github.com/metal-stack/metal-go/api/client/switch_operations"
 	"github.com/metal-stack/metal-go/api/models"
 	metaltag "github.com/metal-stack/metal-lib/pkg/tag"
@@ -36,7 +36,7 @@ type metalCollector struct {
 	switchInterfaceInfo *prometheus.Desc
 
 	machineAllocationInfo *prometheus.Desc
-	projectInfo *prometheus.Desc
+	projectInfo           *prometheus.Desc
 
 	client metalgo.Client
 }
@@ -105,7 +105,7 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		projectInfo: prometheus.NewDesc(
 			"metal_project_info",
 			"Provide information about metal projects",
-			[]string{"projectId","name"}, nil,
+			[]string{"projectId", "name", "tenantId"}, nil,
 		),
 
 		client: client,
@@ -220,7 +220,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	for _, p := range projects.Payload {
-		ch <- prometheus.MustNewConstMetric(collector.projectInfo, prometheus.GaugeValue, 1.0, p.Meta.ID, p.Name)
+		ch <- prometheus.MustNewConstMetric(collector.projectInfo, prometheus.GaugeValue, 1.0, p.Meta.ID, p.Name, p.TenantID)
 	}
 
 }
