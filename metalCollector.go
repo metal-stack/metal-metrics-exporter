@@ -96,7 +96,7 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		switchInfo: prometheus.NewDesc(
 			"metal_switch_info",
 			"Provide information about the switch",
-			[]string{"switchname", "partition", "metalCoreVersion", "osVendor", "osVersion", "managementIP"}, nil,
+			[]string{"switchname", "partition", "rackid", "metalCoreVersion", "osVendor", "osVersion", "managementIP"}, nil,
 		),
 		switchInterfaceInfo: prometheus.NewDesc(
 			"metal_switch_interface_info",
@@ -204,11 +204,12 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			syncFailed       = 0.0
 			lastSyncDuration = float64(pointer.SafeDeref(pointer.SafeDeref(s.LastSync).Duration))
 
-			partitionID      = pointer.SafeDeref(pointer.SafeDeref(s.Partition).ID)
-			rackID           = pointer.SafeDeref(s.RackID)
-			osVendor         = pointer.SafeDeref(s.Os).Vendor
-			osVersion        = pointer.SafeDeref(s.Os).Version
-			metalCoreVersion = pointer.SafeDeref(s.Os).MetalCoreVersion
+			partitionID = pointer.SafeDeref(pointer.SafeDeref(s.Partition).ID)
+			rackID      = pointer.SafeDeref(s.RackID)
+			osVendor    = pointer.SafeDeref(s.Os).Vendor
+			osVersion   = pointer.SafeDeref(s.Os).Version
+			// metal core version is very long: v0.9.1 (1d5e42ea), tags/v0.9.1-0-g1d5e42e, go1.20.5
+			metalCoreVersion = strings.Split(pointer.SafeDeref(s.Os).MetalCoreVersion, ",")[0]
 			managementIP     = s.ManagementIP
 		)
 
