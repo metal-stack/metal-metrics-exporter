@@ -110,7 +110,7 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		),
 		switchSyncDurationsMs: prometheus.NewDesc(
 			"metal_switch_sync_durations_ms",
-			"The duration of the syncs",
+			"The duration of the syncs in milliseconds",
 			[]string{"switchname", "partition", "rackid"}, nil,
 		),
 		machineAllocationInfo: prometheus.NewDesc(
