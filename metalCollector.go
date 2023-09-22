@@ -32,6 +32,7 @@ type metalCollector struct {
 	capacityFaulty    *prometheus.Desc
 	usedImage         *prometheus.Desc
 
+	switchInfo          *prometheus.Desc
 	switchInterfaceInfo *prometheus.Desc
 	switchSyncFailed    *prometheus.Desc
 	switchSyncDurations *prometheus.Desc
@@ -92,6 +93,11 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"The total number of machines using a image",
 			[]string{"imageID", "name", "classification", "created", "expirationDate", "features"}, nil,
 		),
+		switchInfo: prometheus.NewDesc(
+			"metal_switch_info",
+			"Provide information about the switch",
+			[]string{"switchname", "partition", "metalCoreVersion", "osVendor", "osVersion", "managementIP"}, nil,
+		),
 		switchInterfaceInfo: prometheus.NewDesc(
 			"metal_switch_interface_info",
 			"Provide information about the network",
@@ -128,6 +134,7 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.capacityAllocated
 	ch <- collector.capacityFaulty
 	ch <- collector.usedImage
+	ch <- collector.switchInfo
 	ch <- collector.switchInterfaceInfo
 	ch <- collector.switchSyncFailed
 	ch <- collector.switchSyncDurations
@@ -196,6 +203,13 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 
 			syncFailed       = 0.0
 			lastSyncDuration = float64(pointer.SafeDeref(pointer.SafeDeref(s.LastSync).Duration))
+
+			partitionID      = pointer.SafeDeref(pointer.SafeDeref(s.Partition).ID)
+			rackID           = pointer.SafeDeref(s.RackID)
+			osVendor         = pointer.SafeDeref(s.Os).Vendor
+			osVersion        = pointer.SafeDeref(s.Os).Version
+			metalCoreVersion = pointer.SafeDeref(s.Os).MetalCoreVersion
+			managementIP     = s.ManagementIP
 		)
 
 		if lastSyncError.After(lastSync) {
@@ -203,11 +217,12 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			lastSyncDuration = float64(pointer.SafeDeref(pointer.SafeDeref(s.LastSyncError).Duration))
 		}
 
-		ch <- prometheus.MustNewConstMetric(collector.switchSyncFailed, prometheus.GaugeValue, syncFailed, s.Name, *s.Partition.ID, *s.RackID)
-		ch <- prometheus.MustNewConstMetric(collector.switchSyncDurations, prometheus.GaugeValue, lastSyncDuration, s.Name, *s.Partition.ID, *s.RackID)
+		ch <- prometheus.MustNewConstMetric(collector.switchSyncFailed, prometheus.GaugeValue, syncFailed, s.Name, partitionID, rackID)
+		ch <- prometheus.MustNewConstMetric(collector.switchSyncDurations, prometheus.GaugeValue, lastSyncDuration, s.Name, partitionID, rackID)
+		ch <- prometheus.MustNewConstMetric(collector.switchInfo, prometheus.GaugeValue, 1.0, s.Name, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
 
 		for _, c := range s.Connections {
-			ch <- prometheus.MustNewConstMetric(collector.switchInterfaceInfo, prometheus.GaugeValue, 1.0, s.Name, *c.Nic.Name, c.MachineID, *s.Partition.ID)
+			ch <- prometheus.MustNewConstMetric(collector.switchInterfaceInfo, prometheus.GaugeValue, 1.0, s.Name, pointer.SafeDeref(pointer.SafeDeref(c.Nic).Name), c.MachineID, partitionID)
 		}
 	}
 
