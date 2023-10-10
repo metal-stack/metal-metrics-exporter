@@ -323,14 +323,14 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		for issueID := range allIssuesByID {
 			machineIssues, ok := issuesByMachineID[*m.ID]
 			if !ok {
-				ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 0.0, *m.ID, partitionID, issueID)
+				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, partitionID, issueID)
 				continue
 			}
 
 			if slices.Contains(machineIssues, issueID) {
-				ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, issueID)
+				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 1.0, *m.ID, partitionID, issueID)
 			} else {
-				ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 0.0, *m.ID, partitionID, issueID)
+				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, partitionID, issueID)
 			}
 		}
 	}
