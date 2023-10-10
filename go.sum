@@ -155,8 +155,8 @@ github.com/markbates/oncer v0.0.0-20181203154359-bf2de49a0be2/go.mod h1:Ld9puTsI
 github.com/markbates/safe v1.0.1/go.mod h1:nAqgmRi7cY2nqMc92/bSEeQA+R4OheNU2T1kNSCBdG0=
 github.com/matttproud/golang_protobuf_extensions v1.0.4 h1:mmDVorXM7PCGKw94cs5zkfA9PSy5pEvNWRP0ET0TIVo=
 github.com/matttproud/golang_protobuf_extensions v1.0.4/go.mod h1:BSXmuO+STAnVfrANrmjBb36TMTDstsz7MSK+HVaYKv4=
-github.com/metal-stack/metal-go v0.24.1 h1:S4g3LXeWBELCKIyyCsRMa9B1pC5EClqcX35oV/8xv2U=
-github.com/metal-stack/metal-go v0.24.1/go.mod h1:jNJ0dWIBRwKeJoP+RGqTyE5qLsdZFISFrNHU5m3IDwA=
+github.com/metal-stack/metal-go v0.24.2-0.20231010090805-75451610cea6 h1:RgRxTQdWekyifHlwfpR/AGyozirpeIs5vP/PfJlxYB4=
+github.com/metal-stack/metal-go v0.24.2-0.20231010090805-75451610cea6/go.mod h1:jNJ0dWIBRwKeJoP+RGqTyE5qLsdZFISFrNHU5m3IDwA=
 github.com/metal-stack/metal-lib v0.13.3 h1:BOhwcKHILmBZd2pz2YMOhj8QxzDaz3G0F/CGuYhnu8o=
 github.com/metal-stack/metal-lib v0.13.3/go.mod h1:BAR7fjdoV7DDg8i9GpJQBDaNSFirOcBs0vLYTBnhHQU=
 github.com/metal-stack/security v0.6.7 h1:8wstGy0pdUmphVclAlT+9RKQmx9lF+cIGklJZAB5cIc=
