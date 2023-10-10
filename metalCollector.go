@@ -259,7 +259,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		panic(err)
 	}
 
-	issues, err := collector.client.Machine().Issues(machine.NewIssuesParams(), nil)
+	issues, err := collector.client.Machine().Issues(machine.NewIssuesParams().WithBody(&models.V1MachineIssuesRequest{}), nil)
 	if err != nil {
 		panic(err)
 	}
