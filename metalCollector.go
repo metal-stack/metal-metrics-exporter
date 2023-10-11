@@ -42,8 +42,8 @@ type metalCollector struct {
 
 	machineAllocationInfo *prometheus.Desc
 	machineIssues         *prometheus.Desc
-    
-	projectInfo           *prometheus.Desc
+
+	projectInfo *prometheus.Desc
 
 	client metalgo.Client
 }
@@ -132,7 +132,7 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		machineIssues: prometheus.NewDesc(
 			"metal_machine_issues",
 			"Provide information on machine issues",
-			[]string{"machineid", "partition", "issueid"}, nil,
+			[]string{"machineid", "issueid"}, nil,
 		),
 		projectInfo: prometheus.NewDesc(
 			"metal_project_info",
@@ -336,14 +336,14 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		for issueID := range allIssuesByID {
 			machineIssues, ok := issuesByMachineID[*m.ID]
 			if !ok {
-				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, partitionID, issueID)
+				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, issueID)
 				continue
 			}
 
 			if slices.Contains(machineIssues, issueID) {
-				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 1.0, *m.ID, partitionID, issueID)
+				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 1.0, *m.ID, issueID)
 			} else {
-				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, partitionID, issueID)
+				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, issueID)
 			}
 		}
 	}
