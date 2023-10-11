@@ -44,4 +44,14 @@ metal_partition_capacity_free{partition="fel-wps101",size="c1-xlarge-x86"} 5
 # HELP metal_partition_capacity_total The total capacity of machines in the partition
 # TYPE metal_partition_capacity_total gauge
 metal_partition_capacity_total{partition="fel-wps101",size="c1-xlarge-x86"} 159
+
+# HELP metal_switch_sync_durations The duration of the syncs
+# TYPE metal_switch_sync_durations gauge
+metal_switch_sync_durations{partition="fra-equ01",rackid="fra-equ01-rack01",switchname="fra-equ01-r01leaf01"} 2.06530044e+08
+metal_switch_sync_durations{partition="fra-equ01",rackid="fra-equ01-rack01",switchname="fra-equ01-r01leaf02"} 2.24029886e+08
+
+# HELP metal_switch_sync_failed 1 when the switch sync is failing, otherwise 0
+# TYPE metal_switch_sync_failed gauge
+metal_switch_sync_failed{partition="fra-equ01",rackid="fra-equ01-rack01",switchname="fra-equ01-r01leaf01"} 0
+metal_switch_sync_failed{partition="fra-equ01",rackid="fra-equ01-rack01",switchname="fra-equ01-r01leaf02"} 0
 ```
