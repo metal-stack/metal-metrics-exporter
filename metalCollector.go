@@ -311,6 +311,10 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		)
 
 		if m.Allocation != nil {
+			if m.Allocation.Role != nil {
+				role = *m.Allocation.Role
+			}
+
 			if m.Allocation.Hostname != nil {
 				hostname = *m.Allocation.Hostname
 			}
