@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -40,7 +41,9 @@ type metalCollector struct {
 	switchSyncDurationsMs *prometheus.Desc
 
 	machineAllocationInfo *prometheus.Desc
-	projectInfo           *prometheus.Desc
+	machineIssues         *prometheus.Desc
+
+	projectInfo *prometheus.Desc
 
 	client metalgo.Client
 }
@@ -126,6 +129,11 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"Provide information about the machine allocation",
 			[]string{"machineid", "partition", "machinename", "clusterTag", "primaryASN", "role"}, nil,
 		),
+		machineIssues: prometheus.NewDesc(
+			"metal_machine_issues",
+			"Provide information on machine issues",
+			[]string{"machineid", "issueid"}, nil,
+		),
 		projectInfo: prometheus.NewDesc(
 			"metal_project_info",
 			"Provide information about metal projects",
@@ -153,6 +161,7 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.switchSyncFailed
 	ch <- collector.switchSyncDurationsMs
 	ch <- collector.machineAllocationInfo
+	ch <- collector.machineIssues
 }
 
 func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
@@ -254,26 +263,88 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		panic(err)
 	}
 
-	for _, m := range machines.Payload {
-		if m.ID != nil && m.Allocation != nil && m.Allocation.Hostname != nil {
+	allIssues, err := collector.client.Machine().ListIssues(machine.NewListIssuesParams(), nil)
+	if err != nil {
+		panic(err)
+	}
 
-			clusterTag := ""
-			primaryASN := ""
-			for _, t := range m.Tags {
-				tag, value, found := strings.Cut(t, "=")
-				if found {
-					switch tag {
-					case metaltag.ClusterID:
-						clusterTag = value
-					case metaltag.MachineNetworkPrimaryASN:
-						primaryASN = value
-					}
-				}
+	issues, err := collector.client.Machine().Issues(machine.NewIssuesParams().WithBody(&models.V1MachineIssuesRequest{}), nil)
+	if err != nil {
+		panic(err)
+	}
+
+	issuesByMachineID := map[string][]string{}
+	for _, issue := range issues.Payload {
+		issue := issue
+
+		if issue.Machineid == nil {
+			continue
+		}
+
+		issuesByMachineID[*issue.Machineid] = issue.Issues
+	}
+
+	allIssuesByID := map[string]bool{}
+	for _, issue := range allIssues.Payload {
+		issue := issue
+
+		if issue.ID == nil {
+			continue
+		}
+
+		allIssuesByID[*issue.ID] = true
+	}
+
+	for _, m := range machines.Payload {
+		m := m
+
+		if m.ID == nil {
+			continue
+		}
+
+		var (
+			partitionID = ""
+			role        = ""
+			hostname    = "NOTALLOCATED"
+			clusterID   = "NOTALLOCATED"
+			primaryASN  = "NOTALLOCATED"
+		)
+
+		if m.Allocation != nil {
+			if m.Allocation.Role != nil {
+				role = *m.Allocation.Role
 			}
 
-			ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, *m.Partition.ID, *m.Allocation.Hostname, clusterTag, primaryASN, *m.Allocation.Role)
-		} else if m.ID != nil && m.Partition != nil && m.Partition.ID != nil {
-			ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, *m.Partition.ID, "NOTALLOCATED", "NOTALLOCATED", "NOTALLOCATED", "NOTALLOCATED")
+			if m.Allocation.Hostname != nil {
+				hostname = *m.Allocation.Hostname
+			}
+
+			tm := metaltag.NewTagMap(m.Tags)
+			if id, ok := tm.Value(metaltag.ClusterID); ok {
+				clusterID = id
+			}
+			if asn, ok := tm.Value(metaltag.MachineNetworkPrimaryASN); ok {
+				primaryASN = asn
+			}
+		}
+		if m.Partition != nil && m.Partition.ID != nil {
+			partitionID = *m.Partition.ID
+		}
+
+		ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role)
+
+		for issueID := range allIssuesByID {
+			machineIssues, ok := issuesByMachineID[*m.ID]
+			if !ok {
+				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, issueID)
+				continue
+			}
+
+			if slices.Contains(machineIssues, issueID) {
+				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 1.0, *m.ID, issueID)
+			} else {
+				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, issueID)
+			}
 		}
 	}
 
@@ -285,5 +356,4 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, p := range projects.Payload {
 		ch <- prometheus.MustNewConstMetric(collector.projectInfo, prometheus.GaugeValue, 1.0, p.Meta.ID, p.Name, p.TenantID)
 	}
-
 }
