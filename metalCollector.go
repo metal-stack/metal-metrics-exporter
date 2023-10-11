@@ -11,6 +11,7 @@ import (
 	"github.com/metal-stack/metal-go/api/client/machine"
 	"github.com/metal-stack/metal-go/api/client/network"
 	"github.com/metal-stack/metal-go/api/client/partition"
+	"github.com/metal-stack/metal-go/api/client/project"
 	"github.com/metal-stack/metal-go/api/client/switch_operations"
 	"github.com/metal-stack/metal-go/api/models"
 	"github.com/metal-stack/metal-lib/pkg/pointer"
@@ -39,6 +40,7 @@ type metalCollector struct {
 	switchSyncDurationsMs *prometheus.Desc
 
 	machineAllocationInfo *prometheus.Desc
+	projectInfo           *prometheus.Desc
 
 	client metalgo.Client
 }
@@ -123,6 +125,11 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"metal_machine_allocation_info",
 			"Provide information about the machine allocation",
 			[]string{"machineid", "partition", "machinename", "clusterTag", "primaryASN", "role"}, nil,
+		),
+		projectInfo: prometheus.NewDesc(
+			"metal_project_info",
+			"Provide information about metal projects",
+			[]string{"projectId", "name", "tenantId"}, nil,
 		),
 
 		client: client,
@@ -268,6 +275,15 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		} else if m.ID != nil && m.Partition != nil && m.Partition.ID != nil {
 			ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, *m.Partition.ID, "NOTALLOCATED", "NOTALLOCATED", "NOTALLOCATED", "NOTALLOCATED")
 		}
+	}
+
+	projects, err := collector.client.Project().ListProjects(project.NewListProjectsParams(), nil)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, p := range projects.Payload {
+		ch <- prometheus.MustNewConstMetric(collector.projectInfo, prometheus.GaugeValue, 1.0, p.Meta.ID, p.Name, p.TenantID)
 	}
 
 }
