@@ -42,6 +42,7 @@ type metalCollector struct {
 
 	machineAllocationInfo *prometheus.Desc
 	machineIssues         *prometheus.Desc
+	machineIssuesInfo     *prometheus.Desc
 
 	projectInfo *prometheus.Desc
 
@@ -129,6 +130,11 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"Provide information about the machine allocation",
 			[]string{"machineid", "partition", "machinename", "clusterTag", "primaryASN", "role"}, nil,
 		),
+		machineIssuesInfo: prometheus.NewDesc(
+			"metal_machine_issues_info",
+			"Provide general information on issues that are evaluated by the metal-api",
+			[]string{"issueid", "description", "severity", "refurl"}, nil,
+		),
 		machineIssues: prometheus.NewDesc(
 			"metal_machine_issues",
 			"Provide information on machine issues",
@@ -162,6 +168,7 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.switchSyncDurationsMs
 	ch <- collector.machineAllocationInfo
 	ch <- collector.machineIssues
+	ch <- collector.machineIssuesInfo
 }
 
 func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
@@ -268,7 +275,9 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		panic(err)
 	}
 
-	issues, err := collector.client.Machine().Issues(machine.NewIssuesParams().WithBody(&models.V1MachineIssuesRequest{}), nil)
+	issues, err := collector.client.Machine().Issues(machine.NewIssuesParams().WithBody(&models.V1MachineIssuesRequest{
+		LastErrorThreshold: pointer.Pointer(int64(1 * time.Hour)),
+	}), nil)
 	if err != nil {
 		panic(err)
 	}
@@ -293,6 +302,8 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		allIssuesByID[*issue.ID] = true
+
+		ch <- prometheus.MustNewConstMetric(collector.machineIssuesInfo, prometheus.GaugeValue, 1.0, *issue.ID, pointer.SafeDeref(issue.Description), pointer.SafeDeref(issue.Severity), pointer.SafeDeref(issue.RefURL))
 	}
 
 	for _, m := range machines.Payload {
