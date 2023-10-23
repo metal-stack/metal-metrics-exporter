@@ -128,7 +128,7 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		machineAllocationInfo: prometheus.NewDesc(
 			"metal_machine_allocation_info",
 			"Provide information about the machine allocation",
-			[]string{"machineid", "partition", "machinename", "clusterTag", "primaryASN", "role"}, nil,
+			[]string{"machineid", "partition", "machinename", "clusterTag", "primaryASN", "role", "state"}, nil,
 		),
 		machineIssuesInfo: prometheus.NewDesc(
 			"metal_machine_issues_info",
@@ -319,6 +319,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			hostname    = "NOTALLOCATED"
 			clusterID   = "NOTALLOCATED"
 			primaryASN  = "NOTALLOCATED"
+			state       = pointer.SafeDeref(pointer.SafeDeref(m.State).Value)
 		)
 
 		if m.Allocation != nil {
@@ -342,7 +343,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			partitionID = *m.Partition.ID
 		}
 
-		ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role)
+		ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state)
 
 		for issueID := range allIssuesByID {
 			machineIssues, ok := issuesByMachineID[*m.ID]
