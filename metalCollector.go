@@ -319,8 +319,12 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			hostname    = "NOTALLOCATED"
 			clusterID   = "NOTALLOCATED"
 			primaryASN  = "NOTALLOCATED"
-			state       = pointer.SafeDeref(pointer.SafeDeref(m.State).Value)
+			state       = "AVAILABLE"
 		)
+
+		if m.State != nil && m.State.Value != nil && *m.State.Value != "" {
+			state = *m.State.Value
+		}
 
 		if m.Allocation != nil {
 			if m.Allocation.Role != nil {
