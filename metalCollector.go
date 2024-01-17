@@ -103,7 +103,7 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			[]string{"partition", "size"}, nil,
 		),
 		capacityReservationsUsed: prometheus.NewDesc(
-			"metal_partition_capacity_reserverations_used",
+			"metal_partition_capacity_reservations_used",
 			"The sum of used capacity reservations in the partition",
 			[]string{"partition", "size"}, nil,
 		),
