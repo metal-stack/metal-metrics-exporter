@@ -28,11 +28,13 @@ type metalCollector struct {
 	usedPrefixes      *prometheus.Desc
 	availablePrefixes *prometheus.Desc
 
-	capacityTotal     *prometheus.Desc
-	capacityFree      *prometheus.Desc
-	capacityAllocated *prometheus.Desc
-	capacityFaulty    *prometheus.Desc
-	usedImage         *prometheus.Desc
+	capacityTotal             *prometheus.Desc
+	capacityFree              *prometheus.Desc
+	capacityAllocated         *prometheus.Desc
+	capacityFaulty            *prometheus.Desc
+	capacityReservationsTotal *prometheus.Desc
+	capacityReservationsUsed  *prometheus.Desc
+	usedImage                 *prometheus.Desc
 
 	switchInfo            *prometheus.Desc
 	switchInterfaceInfo   *prometheus.Desc
@@ -93,6 +95,16 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		capacityFaulty: prometheus.NewDesc(
 			"metal_partition_capacity_faulty",
 			"The capacity of faulty machines in the partition",
+			[]string{"partition", "size"}, nil,
+		),
+		capacityReservationsTotal: prometheus.NewDesc(
+			"metal_partition_capacity_reservations_total",
+			"The sum of capacity reservations in the partition",
+			[]string{"partition", "size"}, nil,
+		),
+		capacityReservationsUsed: prometheus.NewDesc(
+			"metal_partition_capacity_reserverations_used",
+			"The sum of used capacity reservations in the partition",
 			[]string{"partition", "size"}, nil,
 		),
 		usedImage: prometheus.NewDesc(
@@ -160,6 +172,8 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.capacityFree
 	ch <- collector.capacityAllocated
 	ch <- collector.capacityFaulty
+	ch <- collector.capacityReservationsTotal
+	ch <- collector.capacityReservationsUsed
 	ch <- collector.usedImage
 	ch <- collector.switchInfo
 	ch <- collector.switchInterfaceInfo
@@ -202,6 +216,8 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(collector.capacityAllocated, prometheus.GaugeValue, float64(*s.Allocated), *p.ID, *s.Size)
 			ch <- prometheus.MustNewConstMetric(collector.capacityFree, prometheus.GaugeValue, float64(*s.Free), *p.ID, *s.Size)
 			ch <- prometheus.MustNewConstMetric(collector.capacityFaulty, prometheus.GaugeValue, float64(*s.Faulty), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityReservationsTotal, prometheus.GaugeValue, float64(*s.Reservations), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityReservationsUsed, prometheus.GaugeValue, float64(*s.Usedreservations), *p.ID, *s.Size)
 		}
 	}
 
