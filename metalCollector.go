@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -234,7 +233,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		underlay := fmt.Sprintf("%t", *n.Underlay)
 		prefixes := strings.Join(n.Prefixes, ",")
 		destPrefixes := strings.Join(n.Destinationprefixes, ",")
-		vrf := strconv.FormatUint(uint64(n.Vrf), 10)
+		vrf := fmt.Sprintf("%d", n.Vrf)
 
 		// {"networkId", "name", "projectId", "description", "partition", "vrf", "prefixes", "destPrefixes", "parentNetworkID", "isPrivateSuper", "useNat", "isUnderlay"}, nil,
 		ch <- prometheus.MustNewConstMetric(collector.networkInfo, prometheus.GaugeValue, 1.0, *n.ID, n.Name, n.Projectid, n.Description, n.Partitionid, vrf, prefixes, destPrefixes, n.Parentnetworkid, privateSuper, nat, underlay)
