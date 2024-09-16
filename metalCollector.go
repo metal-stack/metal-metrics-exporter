@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -28,11 +27,18 @@ type metalCollector struct {
 	usedPrefixes      *prometheus.Desc
 	availablePrefixes *prometheus.Desc
 
-	capacityTotal     *prometheus.Desc
-	capacityFree      *prometheus.Desc
-	capacityAllocated *prometheus.Desc
-	capacityFaulty    *prometheus.Desc
-	usedImage         *prometheus.Desc
+	capacityTotal             *prometheus.Desc
+	capacityWaiting           *prometheus.Desc
+	capacityFree              *prometheus.Desc
+	capacityAllocatable       *prometheus.Desc
+	capacityPhonedHome        *prometheus.Desc
+	capacityUnavailable       *prometheus.Desc
+	capacityOther             *prometheus.Desc
+	capacityAllocated         *prometheus.Desc
+	capacityFaulty            *prometheus.Desc
+	capacityReservationsTotal *prometheus.Desc
+	capacityReservationsUsed  *prometheus.Desc
+	usedImage                 *prometheus.Desc
 
 	switchInfo            *prometheus.Desc
 	switchInterfaceInfo   *prometheus.Desc
@@ -77,12 +83,22 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		),
 		capacityTotal: prometheus.NewDesc(
 			"metal_partition_capacity_total",
-			"The total capacity of machines in the partition",
+			"The total number of machines in the partition",
+			[]string{"partition", "size"}, nil,
+		),
+		capacityWaiting: prometheus.NewDesc(
+			"metal_partition_capacity_waiting",
+			"The total number of waiting machines in the partition",
 			[]string{"partition", "size"}, nil,
 		),
 		capacityFree: prometheus.NewDesc(
 			"metal_partition_capacity_free",
-			"The capacity of free machines in the partition",
+			"(DEPRECATED) The total number of allocatable machines in the partition, use metal_partition_capacity_allocatable",
+			[]string{"partition", "size"}, nil,
+		),
+		capacityAllocatable: prometheus.NewDesc(
+			"metal_partition_capacity_allocatable",
+			"The total number of waiting allocatable machines in the partition",
 			[]string{"partition", "size"}, nil,
 		),
 		capacityAllocated: prometheus.NewDesc(
@@ -90,9 +106,34 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"The capacity of allocated machines in the partition",
 			[]string{"partition", "size"}, nil,
 		),
+		capacityReservationsTotal: prometheus.NewDesc(
+			"metal_partition_capacity_reservations_total",
+			"The sum of capacity reservations in the partition",
+			[]string{"partition", "size"}, nil,
+		),
+		capacityReservationsUsed: prometheus.NewDesc(
+			"metal_partition_capacity_reservations_used",
+			"The sum of used capacity reservations in the partition",
+			[]string{"partition", "size"}, nil,
+		),
+		capacityPhonedHome: prometheus.NewDesc(
+			"metal_partition_capacity_phoned_home",
+			"The total number of faulty machines in the partition",
+			[]string{"partition", "size"}, nil,
+		),
 		capacityFaulty: prometheus.NewDesc(
 			"metal_partition_capacity_faulty",
 			"The capacity of faulty machines in the partition",
+			[]string{"partition", "size"}, nil,
+		),
+		capacityUnavailable: prometheus.NewDesc(
+			"metal_partition_capacity_unavailable",
+			"The total number of faulty machines in the partition",
+			[]string{"partition", "size"}, nil,
+		),
+		capacityOther: prometheus.NewDesc(
+			"metal_partition_capacity_other",
+			"The total number of machines in an other state in the partition",
 			[]string{"partition", "size"}, nil,
 		),
 		usedImage: prometheus.NewDesc(
@@ -158,8 +199,15 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.availablePrefixes
 	ch <- collector.capacityTotal
 	ch <- collector.capacityFree
+	ch <- collector.capacityAllocatable
+	ch <- collector.capacityPhonedHome
+	ch <- collector.capacityUnavailable
+	ch <- collector.capacityOther
+	ch <- collector.capacityWaiting
 	ch <- collector.capacityAllocated
 	ch <- collector.capacityFaulty
+	ch <- collector.capacityReservationsTotal
+	ch <- collector.capacityReservationsUsed
 	ch <- collector.usedImage
 	ch <- collector.switchInfo
 	ch <- collector.switchInterfaceInfo
@@ -177,19 +225,25 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		panic(err)
 	}
 	for _, n := range networks.Payload {
+		if n.Privatesuper == nil || n.Nat == nil || n.Underlay == nil || n.ID == nil {
+			continue
+		}
 		privateSuper := fmt.Sprintf("%t", *n.Privatesuper)
 		nat := fmt.Sprintf("%t", *n.Nat)
 		underlay := fmt.Sprintf("%t", *n.Underlay)
 		prefixes := strings.Join(n.Prefixes, ",")
 		destPrefixes := strings.Join(n.Destinationprefixes, ",")
-		vrf := strconv.FormatUint(uint64(n.Vrf), 10)
+		vrf := fmt.Sprintf("%d", n.Vrf)
 
 		// {"networkId", "name", "projectId", "description", "partition", "vrf", "prefixes", "destPrefixes", "parentNetworkID", "isPrivateSuper", "useNat", "isUnderlay"}, nil,
 		ch <- prometheus.MustNewConstMetric(collector.networkInfo, prometheus.GaugeValue, 1.0, *n.ID, n.Name, n.Projectid, n.Description, n.Partitionid, vrf, prefixes, destPrefixes, n.Parentnetworkid, privateSuper, nat, underlay)
-		ch <- prometheus.MustNewConstMetric(collector.usedIps, prometheus.GaugeValue, float64(*n.Usage.UsedIps), *n.ID)
-		ch <- prometheus.MustNewConstMetric(collector.availableIps, prometheus.GaugeValue, float64(*n.Usage.AvailableIps), *n.ID)
-		ch <- prometheus.MustNewConstMetric(collector.usedPrefixes, prometheus.GaugeValue, float64(*n.Usage.UsedPrefixes), *n.ID)
-		ch <- prometheus.MustNewConstMetric(collector.availablePrefixes, prometheus.GaugeValue, float64(*n.Usage.AvailablePrefixes), *n.ID)
+		if n.Usage == nil {
+			continue
+		}
+		ch <- prometheus.MustNewConstMetric(collector.usedIps, prometheus.GaugeValue, float64(pointer.SafeDeref(n.Usage.UsedIps)), *n.ID)
+		ch <- prometheus.MustNewConstMetric(collector.availableIps, prometheus.GaugeValue, float64(pointer.SafeDeref(n.Usage.AvailableIps)), *n.ID)
+		ch <- prometheus.MustNewConstMetric(collector.usedPrefixes, prometheus.GaugeValue, float64(pointer.SafeDeref(n.Usage.UsedPrefixes)), *n.ID)
+		ch <- prometheus.MustNewConstMetric(collector.availablePrefixes, prometheus.GaugeValue, float64(pointer.SafeDeref(n.Usage.AvailablePrefixes)), *n.ID)
 	}
 
 	caps, err := collector.client.Partition().PartitionCapacity(partition.NewPartitionCapacityParams().WithBody(&models.V1PartitionCapacityRequest{}), nil)
@@ -197,11 +251,24 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		panic(err)
 	}
 	for _, p := range caps.Payload {
+		if p.ID == nil {
+			continue
+		}
 		for _, s := range p.Servers {
-			ch <- prometheus.MustNewConstMetric(collector.capacityTotal, prometheus.GaugeValue, float64(*s.Total), *p.ID, *s.Size)
-			ch <- prometheus.MustNewConstMetric(collector.capacityAllocated, prometheus.GaugeValue, float64(*s.Allocated), *p.ID, *s.Size)
-			ch <- prometheus.MustNewConstMetric(collector.capacityFree, prometheus.GaugeValue, float64(*s.Free), *p.ID, *s.Size)
-			ch <- prometheus.MustNewConstMetric(collector.capacityFaulty, prometheus.GaugeValue, float64(*s.Faulty), *p.ID, *s.Size)
+			if s.Size == nil {
+				continue
+			}
+			ch <- prometheus.MustNewConstMetric(collector.capacityTotal, prometheus.GaugeValue, float64(s.Total), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityAllocated, prometheus.GaugeValue, float64(s.Allocated), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityWaiting, prometheus.GaugeValue, float64(s.Waiting), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityFree, prometheus.GaugeValue, float64(s.Allocatable), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityAllocatable, prometheus.GaugeValue, float64(s.Allocatable), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityFaulty, prometheus.GaugeValue, float64(s.Faulty), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityReservationsTotal, prometheus.GaugeValue, float64(s.Reservations), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityReservationsUsed, prometheus.GaugeValue, float64(s.Usedreservations), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityPhonedHome, prometheus.GaugeValue, float64(s.PhonedHome), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityUnavailable, prometheus.GaugeValue, float64(s.Unavailable), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityOther, prometheus.GaugeValue, float64(s.Other), *p.ID, *s.Size)
 		}
 	}
 
@@ -212,6 +279,9 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		panic(err)
 	}
 	for _, i := range images.Payload {
+		if i.ID == nil {
+			continue
+		}
 		usage := len(i.Usedby)
 		created := fmt.Sprintf("%d", time.Time(i.Created).Unix())
 		expirationDate := ""
