@@ -29,21 +29,49 @@ metal_network_prefix_available{networkId="020966ab-18da-40d6-ba69-fea8d60e6074"}
 # TYPE metal_network_prefix_used gauge
 metal_network_prefix_used{networkId="020966ab-18da-40d6-ba69-fea8d60e6074"} 0
 
+# HELP metal_partition_capacity_allocatable The total number of waiting allocatable machines in the partition
+# TYPE metal_partition_capacity_allocatable gauge
+metal_partition_capacity_allocatable{partition="fra-equ01",size="c1-xlarge-x86"} 2
+
 # HELP metal_partition_capacity_allocated The capacity of allocated machines in the partition
 # TYPE metal_partition_capacity_allocated gauge
-metal_partition_capacity_allocated{partition="fel-wps101",size="c1-xlarge-x86"} 148
+metal_partition_capacity_allocated{partition="fra-equ01",size="c1-xlarge-x86"} 1
 
 # HELP metal_partition_capacity_faulty The capacity of faulty machines in the partition
 # TYPE metal_partition_capacity_faulty gauge
-metal_partition_capacity_faulty{partition="fel-wps101",size="c1-xlarge-x86"} 2
+metal_partition_capacity_faulty{partition="fra-equ01",size="c1-xlarge-x86"} 0
 
-# HELP metal_partition_capacity_free The capacity of free machines in the partition
+# HELP metal_partition_capacity_free (DEPRECATED) The total number of allocatable machines in the partition, use metal_partition_capacity_allocatable
 # TYPE metal_partition_capacity_free gauge
-metal_partition_capacity_free{partition="fel-wps101",size="c1-xlarge-x86"} 5
+metal_partition_capacity_free{partition="fra-equ01",size="c1-xlarge-x86"} 2
 
-# HELP metal_partition_capacity_total The total capacity of machines in the partition
+# HELP metal_partition_capacity_other The total number of machines in an other state in the partition
+# TYPE metal_partition_capacity_other gauge
+metal_partition_capacity_other{partition="fra-equ01",size="c1-xlarge-x86"} 0
+
+# HELP metal_partition_capacity_phoned_home The total number of faulty machines in the partition
+# TYPE metal_partition_capacity_phoned_home gauge
+metal_partition_capacity_phoned_home{partition="fra-equ01",size="c1-xlarge-x86"} 1
+
+# HELP metal_partition_capacity_reservations_total The sum of capacity reservations in the partition
+# TYPE metal_partition_capacity_reservations_total gauge
+metal_partition_capacity_reservations_total{partition="fra-equ01",size="c1-xlarge-x86"} 1
+
+# HELP metal_partition_capacity_reservations_used The sum of used capacity reservations in the partition
+# TYPE metal_partition_capacity_reservations_used gauge
+metal_partition_capacity_reservations_used{partition="fra-equ01",size="c1-xlarge-x86"} 0
+
+# HELP metal_partition_capacity_total The total number of machines in the partition
 # TYPE metal_partition_capacity_total gauge
-metal_partition_capacity_total{partition="fel-wps101",size="c1-xlarge-x86"} 159
+metal_partition_capacity_total{partition="fra-equ01",size="c1-xlarge-x86"} 3
+
+# HELP metal_partition_capacity_unavailable The total number of faulty machines in the partition
+# TYPE metal_partition_capacity_unavailable gauge
+metal_partition_capacity_unavailable{partition="fra-equ01",size="c1-xlarge-x86"} 0
+
+# HELP metal_partition_capacity_waiting The total number of waiting machines in the partition
+# TYPE metal_partition_capacity_waiting gauge
+metal_partition_capacity_waiting{partition="fra-equ01",size="c1-xlarge-x86"} 2
 
 # HELP metal_switch_sync_durations The duration of the syncs
 # TYPE metal_switch_sync_durations gauge
