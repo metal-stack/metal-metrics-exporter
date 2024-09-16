@@ -30,7 +30,7 @@ type metalCollector struct {
 	capacityTotal             *prometheus.Desc
 	capacityWaiting           *prometheus.Desc
 	capacityFree              *prometheus.Desc
-	capacityFreeAvailable     *prometheus.Desc
+	capacityAllocatable       *prometheus.Desc
 	capacityPhonedHome        *prometheus.Desc
 	capacityUnavailable       *prometheus.Desc
 	capacityOther             *prometheus.Desc
@@ -93,12 +93,12 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		),
 		capacityFree: prometheus.NewDesc(
 			"metal_partition_capacity_free",
-			"(DEPRECATED) The total number of waiting machines in the partition",
+			"(DEPRECATED) The total number of allocatable machines in the partition, use metal_partition_capacity_allocatable",
 			[]string{"partition", "size"}, nil,
 		),
-		capacityFreeAvailable: prometheus.NewDesc(
-			"metal_partition_capacity_free_available",
-			"The total number of free available (waiting and unreserved) machines in the partition",
+		capacityAllocatable: prometheus.NewDesc(
+			"metal_partition_capacity_allocatable",
+			"The total number of waiting allocatable machines in the partition",
 			[]string{"partition", "size"}, nil,
 		),
 		capacityAllocated: prometheus.NewDesc(
@@ -199,7 +199,7 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.availablePrefixes
 	ch <- collector.capacityTotal
 	ch <- collector.capacityFree
-	ch <- collector.capacityFreeAvailable
+	ch <- collector.capacityAllocatable
 	ch <- collector.capacityPhonedHome
 	ch <- collector.capacityUnavailable
 	ch <- collector.capacityOther
@@ -261,8 +261,8 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(collector.capacityTotal, prometheus.GaugeValue, float64(s.Total), *p.ID, *s.Size)
 			ch <- prometheus.MustNewConstMetric(collector.capacityAllocated, prometheus.GaugeValue, float64(s.Allocated), *p.ID, *s.Size)
 			ch <- prometheus.MustNewConstMetric(collector.capacityWaiting, prometheus.GaugeValue, float64(s.Waiting), *p.ID, *s.Size)
-			ch <- prometheus.MustNewConstMetric(collector.capacityFree, prometheus.GaugeValue, float64(s.Free+s.Reservations-s.Usedreservations), *p.ID, *s.Size)
-			ch <- prometheus.MustNewConstMetric(collector.capacityFreeAvailable, prometheus.GaugeValue, float64(s.Free), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityFree, prometheus.GaugeValue, float64(s.Allocatable), *p.ID, *s.Size)
+			ch <- prometheus.MustNewConstMetric(collector.capacityAllocatable, prometheus.GaugeValue, float64(s.Allocatable), *p.ID, *s.Size)
 			ch <- prometheus.MustNewConstMetric(collector.capacityFaulty, prometheus.GaugeValue, float64(s.Faulty), *p.ID, *s.Size)
 			ch <- prometheus.MustNewConstMetric(collector.capacityReservationsTotal, prometheus.GaugeValue, float64(s.Reservations), *p.ID, *s.Size)
 			ch <- prometheus.MustNewConstMetric(collector.capacityReservationsUsed, prometheus.GaugeValue, float64(s.Usedreservations), *p.ID, *s.Size)
