@@ -3,7 +3,7 @@ module github.com/metal-stack/metal-metrics-exporter
 go 1.23
 
 require (
-	github.com/metal-stack/metal-go v0.35.2
+	github.com/metal-stack/metal-go v0.37.1-0.20241001061321-b6fa718f2176
 	github.com/prometheus/client_golang v1.20.3
 	k8s.io/klog/v2 v2.130.1
 )
@@ -40,7 +40,7 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.1.1 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/metal-stack/metal-lib v0.18.2
+	github.com/metal-stack/metal-lib v0.18.3
 	github.com/metal-stack/security v0.8.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect

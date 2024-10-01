@@ -50,10 +50,12 @@ type metalCollector struct {
 	machineIssues         *prometheus.Desc
 	machineIssuesInfo     *prometheus.Desc
 
-	machineIpmiIpAddress *prometheus.Desc
-	machinePowerUsage    *prometheus.Desc
-	machinePowerState    *prometheus.Desc
-	machineHardwareInfo  *prometheus.Desc
+	machineIpmiIpAddress        *prometheus.Desc
+	machinePowerUsage           *prometheus.Desc
+	machinePowerState           *prometheus.Desc
+	machinePowerSuppliesTotal   *prometheus.Desc
+	machinePowerSuppliesHealthy *prometheus.Desc
+	machineHardwareInfo         *prometheus.Desc
 
 	projectInfo *prometheus.Desc
 
@@ -201,6 +203,16 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"Provide information about the machine power state",
 			[]string{"machineid"}, nil,
 		),
+		machinePowerSuppliesTotal: prometheus.NewDesc(
+			"metal_machine_power_supplies_total",
+			"Provide information about the total number of power supplies",
+			[]string{"machineid"}, nil,
+		),
+		machinePowerSuppliesHealthy: prometheus.NewDesc(
+			"metal_machine_power_supplies_healthy",
+			"Provide information about the number of healthy power supplies",
+			[]string{"machineid"}, nil,
+		),
 		machineHardwareInfo: prometheus.NewDesc(
 			"metal_machine_hardware_info",
 			"Provide information about the machine",
@@ -246,6 +258,8 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.machineIpmiIpAddress
 	ch <- collector.machinePowerUsage
 	ch <- collector.machinePowerState
+	ch <- collector.machinePowerSuppliesTotal
+	ch <- collector.machinePowerSuppliesHealthy
 }
 
 func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
@@ -458,6 +472,16 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 					powerstate = -1
 				}
 				ch <- prometheus.MustNewConstMetric(collector.machinePowerState, prometheus.GaugeValue, powerstate, *m.ID)
+			}
+			if m.Ipmi.Powersupplies != nil {
+				ch <- prometheus.MustNewConstMetric(collector.machinePowerSuppliesTotal, prometheus.GaugeValue, float64(len(m.Ipmi.Powersupplies)), *m.ID)
+				healthy := 0
+				for _, ps := range m.Ipmi.Powersupplies {
+					if ps.Status != nil && *ps.Status.Health == "OK" {
+						healthy++
+					}
+				}
+				ch <- prometheus.MustNewConstMetric(collector.machinePowerSuppliesHealthy, prometheus.GaugeValue, float64(healthy), *m.ID)
 			}
 			if m.Ipmi.Address != nil {
 				ch <- prometheus.MustNewConstMetric(collector.machineIpmiIpAddress, prometheus.GaugeValue, 1.0, *m.ID, *m.Ipmi.Address)
