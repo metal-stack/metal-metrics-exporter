@@ -50,6 +50,11 @@ type metalCollector struct {
 	machineIssues         *prometheus.Desc
 	machineIssuesInfo     *prometheus.Desc
 
+	machineIpmiIpAddress *prometheus.Desc
+	machinePowerUsage    *prometheus.Desc
+	machinePowerState    *prometheus.Desc
+	machineHardwareInfo  *prometheus.Desc
+
 	projectInfo *prometheus.Desc
 
 	client metalgo.Client
@@ -181,6 +186,27 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"Provide information on machine issues",
 			[]string{"machineid", "issueid"}, nil,
 		),
+		machineIpmiIpAddress: prometheus.NewDesc(
+			"metal_machine_ipmi_info",
+			"Provide the ipmi ip address",
+			[]string{"machineid", "ipmiIP"}, nil,
+		),
+		machinePowerUsage: prometheus.NewDesc(
+			"metal_machine_ipmi_power_usage",
+			"Provide information about the machine power usage in watts",
+			[]string{"machineid"}, nil,
+		),
+		machinePowerState: prometheus.NewDesc(
+			"metal_machine_ipmi_power_state",
+			"Provide information about the machine power state",
+			[]string{"machineid"}, nil,
+		),
+		machineHardwareInfo: prometheus.NewDesc(
+			"metal_machine_hardware_info",
+			"Provide information about the machine",
+			[]string{"machineid", "partition", "bmcVersion", "biosVersion", "chassisPartNumber", "chassisPartSerial", "boardMfg", "boardMfgSerial",
+				"boardPartNumber", "productManufacturer", "productPartNumber", "productSerial"}, nil,
+		),
 		projectInfo: prometheus.NewDesc(
 			"metal_project_info",
 			"Provide information about metal projects",
@@ -217,6 +243,9 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.machineAllocationInfo
 	ch <- collector.machineIssues
 	ch <- collector.machineIssuesInfo
+	ch <- collector.machineIpmiIpAddress
+	ch <- collector.machinePowerUsage
+	ch <- collector.machinePowerState
 }
 
 func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
@@ -335,7 +364,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	machines, err := collector.client.Machine().FindMachines(machine.NewFindMachinesParams().WithBody(&models.V1MachineFindRequest{}), nil)
+	machines, err := collector.client.Machine().FindIPMIMachines(machine.NewFindIPMIMachinesParams().WithBody(&models.V1MachineFindRequest{}), nil)
 	if err != nil {
 		panic(err)
 	}
@@ -415,6 +444,32 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 		if m.Partition != nil && m.Partition.ID != nil {
 			partitionID = *m.Partition.ID
+		}
+
+		if m.Ipmi != nil {
+			if m.Ipmi.Powerstate != nil {
+				var powerstate float64
+				switch *m.Ipmi.Powerstate {
+				case "ON":
+					powerstate = 1
+				case "OFF":
+					powerstate = 0
+				default:
+					powerstate = -1
+				}
+				ch <- prometheus.MustNewConstMetric(collector.machinePowerState, prometheus.GaugeValue, powerstate, *m.ID)
+			}
+			if m.Ipmi.Address != nil {
+				ch <- prometheus.MustNewConstMetric(collector.machineIpmiIpAddress, prometheus.GaugeValue, 1.0, *m.ID, *m.Ipmi.Address)
+			}
+			if m.Ipmi.Powermetric != nil && m.Ipmi.Powermetric.Averageconsumedwatts != nil {
+				ch <- prometheus.MustNewConstMetric(collector.machinePowerUsage, prometheus.GaugeValue, float64(pointer.SafeDeref(m.Ipmi.Powermetric.Averageconsumedwatts)), *m.ID)
+			}
+			if m.Bios != nil && m.Ipmi.Fru != nil {
+				ch <- prometheus.MustNewConstMetric(collector.machineHardwareInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, pointer.SafeDeref(m.Ipmi.Bmcversion),
+					pointer.SafeDeref(m.Bios.Version), m.Ipmi.Fru.ChassisPartNumber, m.Ipmi.Fru.ChassisPartSerial, m.Ipmi.Fru.BoardMfg, m.Ipmi.Fru.BoardMfgSerial, m.Ipmi.Fru.BoardPartNumber,
+					m.Ipmi.Fru.ProductManufacturer, m.Ipmi.Fru.ProductPartNumber, m.Ipmi.Fru.ProductSerial)
+			}
 		}
 
 		ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state)
