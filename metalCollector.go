@@ -187,17 +187,17 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			[]string{"machineid", "issueid"}, nil,
 		),
 		machineIpmiIpAddress: prometheus.NewDesc(
-			"metal_machine_ipmi_info",
+			"metal_machine_ipmi_address",
 			"Provide the ipmi ip address",
 			[]string{"machineid", "ipmiIP"}, nil,
 		),
 		machinePowerUsage: prometheus.NewDesc(
-			"metal_machine_ipmi_power_usage",
+			"metal_machine_power_usage",
 			"Provide information about the machine power usage in watts",
 			[]string{"machineid"}, nil,
 		),
 		machinePowerState: prometheus.NewDesc(
-			"metal_machine_ipmi_power_state",
+			"metal_machine_power_state",
 			"Provide information about the machine power state",
 			[]string{"machineid"}, nil,
 		),
