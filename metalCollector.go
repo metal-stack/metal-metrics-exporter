@@ -477,7 +477,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- prometheus.MustNewConstMetric(collector.machinePowerSuppliesTotal, prometheus.GaugeValue, float64(len(m.Ipmi.Powersupplies)), *m.ID)
 				healthy := 0
 				for _, ps := range m.Ipmi.Powersupplies {
-					if ps.Status != nil && *ps.Status.Health == "OK" {
+					if ps.Status != nil && ps.Status.Health != nil && *ps.Status.Health == "OK" {
 						healthy++
 					}
 				}
