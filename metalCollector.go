@@ -216,7 +216,7 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 		machineHardwareInfo: prometheus.NewDesc(
 			"metal_machine_hardware_info",
 			"Provide information about the machine",
-			[]string{"machineid", "partition", "bmcVersion", "biosVersion", "chassisPartNumber", "chassisPartSerial", "boardMfg", "boardMfgSerial",
+			[]string{"machineid", "partition", "size", "bmcVersion", "biosVersion", "chassisPartNumber", "chassisPartSerial", "boardMfg", "boardMfgSerial",
 				"boardPartNumber", "productManufacturer", "productPartNumber", "productSerial"}, nil,
 		),
 		projectInfo: prometheus.NewDesc(
@@ -490,7 +490,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- prometheus.MustNewConstMetric(collector.machinePowerUsage, prometheus.GaugeValue, float64(pointer.SafeDeref(m.Ipmi.Powermetric.Averageconsumedwatts)), *m.ID)
 			}
 			if m.Bios != nil && m.Ipmi.Fru != nil {
-				ch <- prometheus.MustNewConstMetric(collector.machineHardwareInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, pointer.SafeDeref(m.Ipmi.Bmcversion),
+				ch <- prometheus.MustNewConstMetric(collector.machineHardwareInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, m.Size.Name, pointer.SafeDeref(m.Ipmi.Bmcversion),
 					pointer.SafeDeref(m.Bios.Version), m.Ipmi.Fru.ChassisPartNumber, m.Ipmi.Fru.ChassisPartSerial, m.Ipmi.Fru.BoardMfg, m.Ipmi.Fru.BoardMfgSerial, m.Ipmi.Fru.BoardPartNumber,
 					m.Ipmi.Fru.ProductManufacturer, m.Ipmi.Fru.ProductPartNumber, m.Ipmi.Fru.ProductSerial)
 			}

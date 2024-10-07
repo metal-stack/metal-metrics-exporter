@@ -85,7 +85,7 @@ metal_switch_sync_failed{partition="fra-equ01",rackid="fra-equ01-rack01",switchn
 
 # HELP metal_machine_hardware_info Provide information about the machine
 # TYPE metal_machine_hardware_info gauge
-metal_machine_hardware_info{biosVersion="3.4",bmcVersion="1.73",boardMfg="Supermicro",boardMfgSerial="",boardPartNumber="X11DPT-B",chassisPartNumber="CSE-217BHQ+-R2K22BP2",chassisPartSerial="C217BAH24AE0006",machineid="11111111-2222-3333-4444-aabbccddeeff",partition="fra-equ01",productManufacturer="Supermicro",productPartNumber="SYS-2029BT-HNR",productSerial="E262335X9100766D"} 1
+metal_machine_hardware_info{size="c1-xlarge-x86",biosVersion="3.4",bmcVersion="1.73",boardMfg="Supermicro",boardMfgSerial="",boardPartNumber="X11DPT-B",chassisPartNumber="CSE-217BHQ+-R2K22BP2",chassisPartSerial="C217BAH24AE0006",machineid="11111111-2222-3333-4444-aabbccddeeff",partition="fra-equ01",productManufacturer="Supermicro",productPartNumber="SYS-2029BT-HNR",productSerial="E262335X9100766D"} 1
 
 # HELP metal_machine_ipmi_info Provide the ipmi ip address
 # TYPE metal_machine_ipmi_info gauge
