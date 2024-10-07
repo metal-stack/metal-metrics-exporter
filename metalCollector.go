@@ -489,8 +489,12 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			if m.Ipmi.Powermetric != nil && m.Ipmi.Powermetric.Averageconsumedwatts != nil {
 				ch <- prometheus.MustNewConstMetric(collector.machinePowerUsage, prometheus.GaugeValue, float64(pointer.SafeDeref(m.Ipmi.Powermetric.Averageconsumedwatts)), *m.ID)
 			}
+			size := "UNKNOWN"
+			if m.Size != nil {
+				size = m.Size.Name
+			}
 			if m.Bios != nil && m.Ipmi.Fru != nil {
-				ch <- prometheus.MustNewConstMetric(collector.machineHardwareInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, m.Size.Name, pointer.SafeDeref(m.Ipmi.Bmcversion),
+				ch <- prometheus.MustNewConstMetric(collector.machineHardwareInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, size, pointer.SafeDeref(m.Ipmi.Bmcversion),
 					pointer.SafeDeref(m.Bios.Version), m.Ipmi.Fru.ChassisPartNumber, m.Ipmi.Fru.ChassisPartSerial, m.Ipmi.Fru.BoardMfg, m.Ipmi.Fru.BoardMfgSerial, m.Ipmi.Fru.BoardPartNumber,
 					m.Ipmi.Fru.ProductManufacturer, m.Ipmi.Fru.ProductPartNumber, m.Ipmi.Fru.ProductSerial)
 			}
