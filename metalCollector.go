@@ -517,10 +517,6 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 					m.Ipmi.Fru.ProductManufacturer, m.Ipmi.Fru.ProductPartNumber, m.Ipmi.Fru.ProductSerial)
 			}
 		}
-		for mId, ip := range ipmiIPs {
-			ch <- prometheus.MustNewConstMetric(collector.machineIpmiIpAddress, prometheus.GaugeValue, 1.0, mId, ip)
-		}
-
 		ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state)
 
 		for issueID := range allIssuesByID {
@@ -536,6 +532,10 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, issueID)
 			}
 		}
+	}
+
+	for mId, ip := range ipmiIPs {
+		ch <- prometheus.MustNewConstMetric(collector.machineIpmiIpAddress, prometheus.GaugeValue, 1.0, mId, ip)
 	}
 
 	projects, err := collector.client.Project().ListProjects(project.NewListProjectsParams(), nil)
