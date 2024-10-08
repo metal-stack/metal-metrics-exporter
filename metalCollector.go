@@ -426,6 +426,9 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(collector.machineIssuesInfo, prometheus.GaugeValue, 1.0, *issue.ID, pointer.SafeDeref(issue.Description), pointer.SafeDeref(issue.Severity), pointer.SafeDeref(issue.RefURL))
 	}
 
+	ipmiIPs := map[string]string{}
+	ipmiLastUpdates := map[string]time.Time{}
+
 	for _, m := range machines.Payload {
 		m := m
 
@@ -490,11 +493,16 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 				}
 				ch <- prometheus.MustNewConstMetric(collector.machinePowerSuppliesHealthy, prometheus.GaugeValue, float64(healthy), *m.ID)
 			}
-			if m.Ipmi.Address != nil {
-				ch <- prometheus.MustNewConstMetric(collector.machineIpmiIpAddress, prometheus.GaugeValue, 1.0, *m.ID, *m.Ipmi.Address)
-			}
 			if m.Ipmi.LastUpdated != nil {
-				ch <- prometheus.MustNewConstMetric(collector.machineIpmiLastUpdated, prometheus.GaugeValue, float64(time.Time(*m.Ipmi.LastUpdated).Unix()), *m.ID)
+				lu := time.Time(*m.Ipmi.LastUpdated)
+				ch <- prometheus.MustNewConstMetric(collector.machineIpmiLastUpdated, prometheus.GaugeValue, float64(lu.Unix()), *m.ID)
+				if m.Ipmi.Address != nil {
+					// only store the latest ip address to prevent duplicate ipmiIP labels
+					if t, ok := ipmiLastUpdates[*m.ID]; !ok || lu.After(t) {
+						ipmiLastUpdates[*m.ID] = lu
+						ipmiIPs[*m.ID] = *m.Ipmi.Address
+					}
+				}
 			}
 			if m.Ipmi.Powermetric != nil && m.Ipmi.Powermetric.Averageconsumedwatts != nil {
 				ch <- prometheus.MustNewConstMetric(collector.machinePowerUsage, prometheus.GaugeValue, float64(pointer.SafeDeref(m.Ipmi.Powermetric.Averageconsumedwatts)), *m.ID)
@@ -508,6 +516,9 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 					pointer.SafeDeref(m.Bios.Version), m.Ipmi.Fru.ChassisPartNumber, m.Ipmi.Fru.ChassisPartSerial, m.Ipmi.Fru.BoardMfg, m.Ipmi.Fru.BoardMfgSerial, m.Ipmi.Fru.BoardPartNumber,
 					m.Ipmi.Fru.ProductManufacturer, m.Ipmi.Fru.ProductPartNumber, m.Ipmi.Fru.ProductSerial)
 			}
+		}
+		for mId, ip := range ipmiIPs {
+			ch <- prometheus.MustNewConstMetric(collector.machineIpmiIpAddress, prometheus.GaugeValue, 1.0, mId, ip)
 		}
 
 		ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state)
