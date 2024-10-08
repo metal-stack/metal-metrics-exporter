@@ -50,6 +50,12 @@ type metalCollector struct {
 	machineIssues         *prometheus.Desc
 	machineIssuesInfo     *prometheus.Desc
 
+	machinePowerUsage           *prometheus.Desc
+	machinePowerState           *prometheus.Desc
+	machinePowerSuppliesTotal   *prometheus.Desc
+	machinePowerSuppliesHealthy *prometheus.Desc
+	machineHardwareInfo         *prometheus.Desc
+
 	projectInfo *prometheus.Desc
 
 	client metalgo.Client
@@ -181,6 +187,32 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"Provide information on machine issues",
 			[]string{"machineid", "issueid"}, nil,
 		),
+		machinePowerUsage: prometheus.NewDesc(
+			"metal_machine_power_usage",
+			"Provide information about the machine power usage in watts",
+			[]string{"machineid"}, nil,
+		),
+		machinePowerState: prometheus.NewDesc(
+			"metal_machine_power_state",
+			"Provide information about the machine power state",
+			[]string{"machineid"}, nil,
+		),
+		machinePowerSuppliesTotal: prometheus.NewDesc(
+			"metal_machine_power_supplies_total",
+			"Provide information about the total number of power supplies",
+			[]string{"machineid"}, nil,
+		),
+		machinePowerSuppliesHealthy: prometheus.NewDesc(
+			"metal_machine_power_supplies_healthy",
+			"Provide information about the number of healthy power supplies",
+			[]string{"machineid"}, nil,
+		),
+		machineHardwareInfo: prometheus.NewDesc(
+			"metal_machine_hardware_info",
+			"Provide information about the machine",
+			[]string{"machineid", "partition", "size", "bmcVersion", "biosVersion", "chassisPartNumber", "chassisPartSerial", "boardMfg", "boardMfgSerial",
+				"boardPartNumber", "productManufacturer", "productPartNumber", "productSerial"}, nil,
+		),
 		projectInfo: prometheus.NewDesc(
 			"metal_project_info",
 			"Provide information about metal projects",
@@ -217,6 +249,10 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.machineAllocationInfo
 	ch <- collector.machineIssues
 	ch <- collector.machineIssuesInfo
+	ch <- collector.machinePowerUsage
+	ch <- collector.machinePowerState
+	ch <- collector.machinePowerSuppliesTotal
+	ch <- collector.machinePowerSuppliesHealthy
 }
 
 func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
@@ -335,7 +371,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	machines, err := collector.client.Machine().FindMachines(machine.NewFindMachinesParams().WithBody(&models.V1MachineFindRequest{}), nil)
+	machines, err := collector.client.Machine().FindIPMIMachines(machine.NewFindIPMIMachinesParams().WithBody(&models.V1MachineFindRequest{}), nil)
 	if err != nil {
 		panic(err)
 	}
@@ -417,6 +453,42 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			partitionID = *m.Partition.ID
 		}
 
+		if m.Ipmi != nil {
+			if m.Ipmi.Powerstate != nil {
+				var powerstate float64
+				switch *m.Ipmi.Powerstate {
+				case "ON":
+					powerstate = 1
+				case "OFF":
+					powerstate = 0
+				default:
+					powerstate = -1
+				}
+				ch <- prometheus.MustNewConstMetric(collector.machinePowerState, prometheus.GaugeValue, powerstate, *m.ID)
+			}
+			if m.Ipmi.Powersupplies != nil {
+				ch <- prometheus.MustNewConstMetric(collector.machinePowerSuppliesTotal, prometheus.GaugeValue, float64(len(m.Ipmi.Powersupplies)), *m.ID)
+				healthy := 0
+				for _, ps := range m.Ipmi.Powersupplies {
+					if ps.Status != nil && ps.Status.Health != nil && *ps.Status.Health == "OK" {
+						healthy++
+					}
+				}
+				ch <- prometheus.MustNewConstMetric(collector.machinePowerSuppliesHealthy, prometheus.GaugeValue, float64(healthy), *m.ID)
+			}
+			if m.Ipmi.Powermetric != nil && m.Ipmi.Powermetric.Averageconsumedwatts != nil {
+				ch <- prometheus.MustNewConstMetric(collector.machinePowerUsage, prometheus.GaugeValue, float64(pointer.SafeDeref(m.Ipmi.Powermetric.Averageconsumedwatts)), *m.ID)
+			}
+			size := "UNKNOWN"
+			if m.Size != nil {
+				size = m.Size.Name
+			}
+			if m.Bios != nil && m.Ipmi.Fru != nil {
+				ch <- prometheus.MustNewConstMetric(collector.machineHardwareInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, size, pointer.SafeDeref(m.Ipmi.Bmcversion),
+					pointer.SafeDeref(m.Bios.Version), m.Ipmi.Fru.ChassisPartNumber, m.Ipmi.Fru.ChassisPartSerial, m.Ipmi.Fru.BoardMfg, m.Ipmi.Fru.BoardMfgSerial, m.Ipmi.Fru.BoardPartNumber,
+					m.Ipmi.Fru.ProductManufacturer, m.Ipmi.Fru.ProductPartNumber, m.Ipmi.Fru.ProductSerial)
+			}
+		}
 		ch <- prometheus.MustNewConstMetric(collector.machineAllocationInfo, prometheus.GaugeValue, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state)
 
 		for issueID := range allIssuesByID {

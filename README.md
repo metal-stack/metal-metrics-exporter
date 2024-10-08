@@ -82,4 +82,28 @@ metal_switch_sync_durations{partition="fra-equ01",rackid="fra-equ01-rack01",swit
 # TYPE metal_switch_sync_failed gauge
 metal_switch_sync_failed{partition="fra-equ01",rackid="fra-equ01-rack01",switchname="fra-equ01-r01leaf01"} 0
 metal_switch_sync_failed{partition="fra-equ01",rackid="fra-equ01-rack01",switchname="fra-equ01-r01leaf02"} 0
+
+# HELP metal_machine_hardware_info Provide information about the machine
+# TYPE metal_machine_hardware_info gauge
+metal_machine_hardware_info{size="c1-xlarge-x86",biosVersion="3.4",bmcVersion="1.73",boardMfg="Supermicro",boardMfgSerial="",boardPartNumber="X11DPT-B",chassisPartNumber="CSE-217BHQ+-R2K22BP2",chassisPartSerial="C217BAH24AE0006",machineid="11111111-2222-3333-4444-aabbccddeeff",partition="fra-equ01",productManufacturer="Supermicro",productPartNumber="SYS-2029BT-HNR",productSerial="E262335X9100766D"} 1
+
+# HELP metal_machine_info Provide the ipmi ip address
+# TYPE metal_machine_info gauge
+metal_machine_info{ipmiIP="10.1.1.36:623",machineid="11111111-2222-3333-4444-aabbccddeeff"} 1
+
+# HELP metal_machine_power_state Provide information about the machine power state
+# TYPE metal_machine_power_state gauge
+metal_machine_power_state{machineid="11111111-2222-3333-4444-aabbccddeeff"} 1
+
+# HELP metal_machine_power_supplies_healthy Provide information about the number of healthy power supplies
+# TYPE metal_machine_power_supplies_healthy gauge
+metal_machine_power_supplies_healthy{machineid="11111111-2222-3333-4444-aabbccddeeff"} 2
+
+# HELP metal_machine_power_supplies_total Provide information about the total number of power supplies
+# TYPE metal_machine_power_supplies_total gauge
+metal_machine_power_supplies_total{machineid="11111111-2222-3333-4444-aabbccddeeff"} 2
+
+# HELP metal_machine_power_usage Provide information about the machine power usage in watts
+# TYPE metal_machine_power_usage gauge
+metal_machine_power_usage{machineid="11111111-2222-3333-4444-aabbccddeeff"} 69
 ```
