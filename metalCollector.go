@@ -493,7 +493,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 			if m.Ipmi.Address != nil {
 				ch <- prometheus.MustNewConstMetric(collector.machineIpmiIpAddress, prometheus.GaugeValue, 1.0, *m.ID, *m.Ipmi.Address)
 			}
-			if m.Ipmi.LastUpdated == nil {
+			if m.Ipmi.LastUpdated != nil {
 				ch <- prometheus.MustNewConstMetric(collector.machineIpmiLastUpdated, prometheus.GaugeValue, float64(time.Time(*m.Ipmi.LastUpdated).Unix()), *m.ID)
 			}
 			if m.Ipmi.Powermetric != nil && m.Ipmi.Powermetric.Averageconsumedwatts != nil {
