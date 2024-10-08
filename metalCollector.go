@@ -426,8 +426,8 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(collector.machineIssuesInfo, prometheus.GaugeValue, 1.0, *issue.ID, pointer.SafeDeref(issue.Description), pointer.SafeDeref(issue.Severity), pointer.SafeDeref(issue.RefURL))
 	}
 
-	ipmiIPs := map[string]string{}
-	ipmiLastUpdates := map[string]time.Time{}
+	ipmiIpMachineIds := map[string]string{}
+	ipmiIpLastUpdates := map[string]time.Time{}
 
 	for _, m := range machines.Payload {
 		m := m
@@ -498,9 +498,9 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- prometheus.MustNewConstMetric(collector.machineIpmiLastUpdated, prometheus.GaugeValue, float64(lu.Unix()), *m.ID)
 				if m.Ipmi.Address != nil {
 					// only store the latest ip address to prevent duplicate ipmiIP labels
-					if t, ok := ipmiLastUpdates[*m.ID]; !ok || lu.After(t) {
-						ipmiLastUpdates[*m.ID] = lu
-						ipmiIPs[*m.ID] = *m.Ipmi.Address
+					if t, ok := ipmiIpLastUpdates[*m.Ipmi.Address]; !ok || lu.After(t) {
+						ipmiIpLastUpdates[*m.Ipmi.Address] = lu
+						ipmiIpMachineIds[*m.Ipmi.Address] = *m.ID
 					}
 				}
 			}
@@ -534,7 +534,7 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	for mId, ip := range ipmiIPs {
+	for ip, mId := range ipmiIpMachineIds {
 		ch <- prometheus.MustNewConstMetric(collector.machineIpmiIpAddress, prometheus.GaugeValue, 1.0, mId, ip)
 	}
 
