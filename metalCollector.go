@@ -50,8 +50,6 @@ type metalCollector struct {
 	machineIssues         *prometheus.Desc
 	machineIssuesInfo     *prometheus.Desc
 
-	machineIpmiIpAddress        *prometheus.Desc
-	machineIpmiLastUpdated      *prometheus.Desc
 	machinePowerUsage           *prometheus.Desc
 	machinePowerState           *prometheus.Desc
 	machinePowerSuppliesTotal   *prometheus.Desc
@@ -189,16 +187,6 @@ func newMetalCollector(client metalgo.Client) *metalCollector {
 			"Provide information on machine issues",
 			[]string{"machineid", "issueid"}, nil,
 		),
-		machineIpmiIpAddress: prometheus.NewDesc(
-			"metal_machine_ipmi_address",
-			"Provide the ipmi ip address",
-			[]string{"machineid", "ipmiIP"}, nil,
-		),
-		machineIpmiLastUpdated: prometheus.NewDesc(
-			"metal_machine_last_updated",
-			"Provide the timestamp of the last ipmi update",
-			[]string{"machineid"}, nil,
-		),
 		machinePowerUsage: prometheus.NewDesc(
 			"metal_machine_power_usage",
 			"Provide information about the machine power usage in watts",
@@ -261,8 +249,6 @@ func (collector *metalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.machineAllocationInfo
 	ch <- collector.machineIssues
 	ch <- collector.machineIssuesInfo
-	ch <- collector.machineIpmiIpAddress
-	ch <- collector.machineIpmiLastUpdated
 	ch <- collector.machinePowerUsage
 	ch <- collector.machinePowerState
 	ch <- collector.machinePowerSuppliesTotal
@@ -426,9 +412,6 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(collector.machineIssuesInfo, prometheus.GaugeValue, 1.0, *issue.ID, pointer.SafeDeref(issue.Description), pointer.SafeDeref(issue.Severity), pointer.SafeDeref(issue.RefURL))
 	}
 
-	ipmiIpMachineIds := map[string]string{}
-	ipmiIpLastUpdates := map[string]time.Time{}
-
 	for _, m := range machines.Payload {
 		m := m
 
@@ -493,17 +476,6 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 				}
 				ch <- prometheus.MustNewConstMetric(collector.machinePowerSuppliesHealthy, prometheus.GaugeValue, float64(healthy), *m.ID)
 			}
-			if m.Ipmi.LastUpdated != nil {
-				lu := time.Time(*m.Ipmi.LastUpdated)
-				ch <- prometheus.MustNewConstMetric(collector.machineIpmiLastUpdated, prometheus.GaugeValue, float64(lu.Unix()), *m.ID)
-				if m.Ipmi.Address != nil {
-					// only store the latest ip address to prevent duplicate ipmiIP labels
-					if t, ok := ipmiIpLastUpdates[*m.Ipmi.Address]; !ok || lu.After(t) {
-						ipmiIpLastUpdates[*m.Ipmi.Address] = lu
-						ipmiIpMachineIds[*m.Ipmi.Address] = *m.ID
-					}
-				}
-			}
 			if m.Ipmi.Powermetric != nil && m.Ipmi.Powermetric.Averageconsumedwatts != nil {
 				ch <- prometheus.MustNewConstMetric(collector.machinePowerUsage, prometheus.GaugeValue, float64(pointer.SafeDeref(m.Ipmi.Powermetric.Averageconsumedwatts)), *m.ID)
 			}
@@ -532,10 +504,6 @@ func (collector *metalCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- prometheus.MustNewConstMetric(collector.machineIssues, prometheus.GaugeValue, 0.0, *m.ID, issueID)
 			}
 		}
-	}
-
-	for ip, mId := range ipmiIpMachineIds {
-		ch <- prometheus.MustNewConstMetric(collector.machineIpmiIpAddress, prometheus.GaugeValue, 1.0, mId, ip)
 	}
 
 	projects, err := collector.client.Project().ListProjects(project.NewListProjectsParams(), nil)
