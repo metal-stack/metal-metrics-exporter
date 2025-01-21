@@ -87,7 +87,10 @@ func main() {
 		}
 	}()
 
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle("/metrics", &handleWithLog{
+		log:     log,
+		handler: promhttp.Handler(),
+	})
 
 	log.Info("beginning to serve on port :9080")
 
@@ -98,4 +101,14 @@ func main() {
 	if err := server.ListenAndServe(); err != nil {
 		log.Error("error serving", "error", err)
 	}
+}
+
+type handleWithLog struct {
+	log     *slog.Logger
+	handler http.Handler
+}
+
+func (h *handleWithLog) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
+	h.log.Info("serving metrics request", "method", rq.Method, "url", rq.URL.String(), "user-agent", rq.UserAgent(), "remote-addr", rq.RemoteAddr)
+	h.handler.ServeHTTP(rw, rq)
 }
