@@ -61,7 +61,7 @@ var (
 	}, []string{"networkId"})
 	availablePrefixes = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "metal_network_prefix_available",
-		Help: "The total number of used prefixes of the network",
+		Help: "The total number of available prefixes of the network",
 	}, []string{"networkId"})
 )
 
@@ -247,7 +247,7 @@ var (
 	}, []string{"switchname", "partition", "rackid", "metalCoreVersion", "osVendor", "osVersion", "managementIP"})
 	switchInterfaceInfo = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "metal_switch_interface_info",
-		Help: "Provide information about the network",
+		Help: "Provide information about the switch interfaces",
 	}, []string{"switchname", "device", "machineid", "partition"})
 	switchMetalCoreUp = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "metal_switch_metal_core_up",
