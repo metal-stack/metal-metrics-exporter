@@ -8,6 +8,7 @@ import (
 
 	metalgo "github.com/metal-stack/metal-go"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -52,23 +53,31 @@ func main() {
 		os.Exit(1)
 	}
 
+	prometheus.MustRegister(&collector{})
+
+	// initialize metrics before starting to serve them to prevent empty values
+	log.Info("initializing metrics...")
+
+	err = update(updateTimeout)
+	if err != nil {
+		log.Error("error during initial update", "error", err)
+		os.Exit(1)
+	}
+
 	go func() {
 		var (
-			initialUpdateSuccess = false
-			failCount            = 0
+			failCount = 0
 		)
 
 		for {
+			log.Info("next fetch in " + fetchInterval.String())
+			time.Sleep(fetchInterval)
+
 			log.Info("updating metrics...")
 			start := time.Now()
 
 			err = update(updateTimeout)
 			if err != nil {
-				if !initialUpdateSuccess {
-					log.Error("error during initial update", "error", err)
-					os.Exit(1)
-				}
-
 				log.Error("error during update", "error", err, "took", time.Since(start).String(), "fail-count", failCount)
 				failCount++
 
@@ -77,13 +86,9 @@ func main() {
 					os.Exit(1)
 				}
 			} else {
-				initialUpdateSuccess = true
 				failCount = 0
 				log.Info("metrics updated successfully", "took", time.Since(start).String())
 			}
-
-			log.Info("next fetch in " + fetchInterval.String())
-			time.Sleep(fetchInterval)
 		}
 	}()
 
