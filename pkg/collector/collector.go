@@ -621,7 +621,7 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 		for issueID := range allIssuesByID {
 			issues, ok := issuesByMachineID[*m.ID]
 			if !ok {
-				c.storeGauge(metalMachineIssues, 1.0, *m.ID, issueID)
+				c.storeGauge(metalMachineIssues, 0.0, *m.ID, issueID)
 				continue
 			}
 
