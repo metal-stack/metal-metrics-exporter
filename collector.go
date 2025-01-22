@@ -278,6 +278,11 @@ func storeGauge(desc *prometheus.Desc, value float64, lvs ...string) {
 	metrics.Store(desc, m)
 }
 
+func storeGaugeTimestamp(ts time.Time, desc *prometheus.Desc, value float64, lvs ...string) {
+	m := prometheus.NewMetricWithTimestamp(ts, prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value, lvs...))
+	metrics.Store(desc, m)
+}
+
 func update(updateTimeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), updateTimeout)
 	defer cancel()
@@ -449,10 +454,7 @@ func switchMetrics(ctx context.Context) error {
 		storeGauge(metalSwitchInfo, 1.0, s.Name, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
 		storeGauge(metalSwitchMetalCoreUp, metalCoreUp, s.Name, partitionID, rackID)
 		storeGauge(metalSwitchSyncFailed, syncFailed, s.Name, partitionID, rackID)
-		storeGauge(metalSwitchSyncDurationsMs, lastSyncDurationMs, s.Name, partitionID, rackID)
-
-		// FIXME:
-		// ch <- prometheus.NewMetricWithTimestamp(lastSync, prometheus.MustNewConstMetric(collector.switchSyncDurationsMs, prometheus.GaugeValue, lastSyncDurationMs, s.Name, partitionID, rackID))
+		storeGaugeTimestamp(lastSync, metalSwitchSyncDurationsMs, lastSyncDurationMs, s.Name, partitionID, rackID)
 
 		for _, c := range s.Connections {
 			storeGauge(metalSwitchInterfaceInfo, 1.0, pointer.SafeDeref(pointer.SafeDeref(c.Nic).Name), c.MachineID, partitionID)
