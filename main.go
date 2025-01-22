@@ -7,13 +7,10 @@ import (
 	"time"
 
 	metalgo "github.com/metal-stack/metal-go"
+	"github.com/metal-stack/metal-metrics-exporter/pkg/collector"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-)
-
-var (
-	client metalgo.Client
 )
 
 func main() {
@@ -35,7 +32,7 @@ func main() {
 		err error
 	)
 
-	client, err = metalgo.NewDriver(url, "", hmac)
+	client, err := metalgo.NewDriver(url, "", hmac)
 	if err != nil {
 		log.Error("error creating client", "error", err)
 		os.Exit(1)
@@ -53,12 +50,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	prometheus.MustRegister(&collector{})
+	c := collector.New(client, updateTimeout)
+
+	prometheus.MustRegister(c)
 
 	// initialize metrics before starting to serve them to prevent empty values
 	log.Info("initializing metrics...")
 
-	err = update(updateTimeout)
+	err = c.Update()
 	if err != nil {
 		log.Error("error during initial update", "error", err)
 		os.Exit(1)
@@ -76,7 +75,7 @@ func main() {
 			log.Info("updating metrics...")
 			start := time.Now()
 
-			err = update(updateTimeout)
+			err = c.Update()
 			if err != nil {
 				log.Error("error during update", "error", err, "took", time.Since(start).String(), "fail-count", failCount)
 				failCount++

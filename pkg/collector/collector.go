@@ -1,12 +1,14 @@
-package main
+package collector
 
 import (
 	"context"
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
+	metalgo "github.com/metal-stack/metal-go"
 	"github.com/metal-stack/metal-go/api/client/image"
 	"github.com/metal-stack/metal-go/api/client/machine"
 	"github.com/metal-stack/metal-go/api/client/network"
@@ -21,11 +23,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type collector struct{}
+type collector struct {
+	client        metalgo.Client
+	updateTimeout time.Duration
+
+	mu                         sync.Mutex
+	newMetrics, currentMetrics []prometheus.Metric
+}
 
 var (
-	metrics = &GenSyncMap[*prometheus.Desc, prometheus.Metric]{}
-
 	descs = []*prometheus.Desc{
 		metalImageUsedTotal,
 		metalNetworkInfo,
@@ -260,6 +266,16 @@ var (
 	)
 )
 
+func New(client metalgo.Client, updateTimeout time.Duration) *collector {
+	return &collector{
+		client:         client,
+		updateTimeout:  updateTimeout,
+		mu:             sync.Mutex{},
+		newMetrics:     nil,
+		currentMetrics: nil,
+	}
+}
+
 func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	for _, desc := range descs {
 		ch <- desc
@@ -267,45 +283,54 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
-	metrics.Range(func(_ *prometheus.Desc, m prometheus.Metric) bool {
+	for _, m := range c.currentMetrics {
 		ch <- m
-		return true
-	})
+	}
 }
 
-func storeGauge(desc *prometheus.Desc, value float64, lvs ...string) {
-	m := prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value, lvs...)
-	metrics.Store(desc, m)
-}
-
-func storeGaugeTimestamp(ts time.Time, desc *prometheus.Desc, value float64, lvs ...string) {
-	m := prometheus.NewMetricWithTimestamp(ts, prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value, lvs...))
-	metrics.Store(desc, m)
-}
-
-func update(updateTimeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), updateTimeout)
+func (c *collector) Update() error {
+	ctx, cancel := context.WithTimeout(context.Background(), c.updateTimeout)
 	defer cancel()
+
+	c.newMetrics = nil
 
 	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(2) // to be graceful with the metal-api
 
-	g.Go(func() error { return networkMetrics(ctx) })
-	g.Go(func() error { return partitionMetrics(ctx) })
-	g.Go(func() error { return imageMetrics(ctx) })
-	g.Go(func() error { return projectMetrics(ctx) })
-	g.Go(func() error { return switchMetrics(ctx) })
-	g.Go(func() error { return machineMetrics(ctx) })
+	g.Go(func() error { return c.networkMetrics(ctx) })
+	g.Go(func() error { return c.partitionMetrics(ctx) })
+	g.Go(func() error { return c.imageMetrics(ctx) })
+	g.Go(func() error { return c.projectMetrics(ctx) })
+	g.Go(func() error { return c.switchMetrics(ctx) })
+	g.Go(func() error { return c.machineMetrics(ctx) })
 
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("error during metrics update: %w", err)
 	}
 
+	c.currentMetrics = c.newMetrics
+
 	return nil
 }
 
-func networkMetrics(ctx context.Context) error {
-	resp, err := client.Network().ListNetworks(network.NewListNetworksParams().WithContext(ctx), nil)
+func (c *collector) storeGauge(desc *prometheus.Desc, value float64, lvs ...string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	m := prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value, lvs...)
+	c.newMetrics = append(c.newMetrics, m)
+}
+
+func (c *collector) storeGaugeTimestamp(ts time.Time, desc *prometheus.Desc, value float64, lvs ...string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	m := prometheus.NewMetricWithTimestamp(ts, prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value, lvs...))
+	c.newMetrics = append(c.newMetrics, m)
+}
+
+func (c *collector) networkMetrics(ctx context.Context) error {
+	resp, err := c.client.Network().ListNetworks(network.NewListNetworksParams().WithContext(ctx), nil)
 	if err != nil {
 		return fmt.Errorf("error retrieving networks: %w", err)
 	}
@@ -325,23 +350,23 @@ func networkMetrics(ctx context.Context) error {
 			vrf          = fmt.Sprintf("%d", nw.Vrf)
 		)
 
-		storeGauge(metalNetworkInfo, 1.0, nwID, nw.Name, nw.Projectid, nw.Description, nw.Partitionid, vrf, prefixes, destPrefixes, nw.Parentnetworkid, privateSuper, nat, underlay)
+		c.storeGauge(metalNetworkInfo, 1.0, nwID, nw.Name, nw.Projectid, nw.Description, nw.Partitionid, vrf, prefixes, destPrefixes, nw.Parentnetworkid, privateSuper, nat, underlay)
 
 		if nw.Usage == nil {
 			continue
 		}
 
-		storeGauge(metalNetworkUsedIPs, float64(pointer.SafeDeref(nw.Usage.UsedIps)), nwID)
-		storeGauge(metalNetworkAvailableIps, float64(pointer.SafeDeref(nw.Usage.AvailableIps)), nwID)
-		storeGauge(metalNetworkUsedPrefixes, float64(pointer.SafeDeref(nw.Usage.UsedPrefixes)), nwID)
-		storeGauge(metalNetworkAvailablePrefixes, float64(pointer.SafeDeref(nw.Usage.AvailablePrefixes)), nwID)
+		c.storeGauge(metalNetworkUsedIPs, float64(pointer.SafeDeref(nw.Usage.UsedIps)), nwID)
+		c.storeGauge(metalNetworkAvailableIps, float64(pointer.SafeDeref(nw.Usage.AvailableIps)), nwID)
+		c.storeGauge(metalNetworkUsedPrefixes, float64(pointer.SafeDeref(nw.Usage.UsedPrefixes)), nwID)
+		c.storeGauge(metalNetworkAvailablePrefixes, float64(pointer.SafeDeref(nw.Usage.AvailablePrefixes)), nwID)
 	}
 
 	return nil
 }
 
-func partitionMetrics(ctx context.Context) error {
-	resp, err := client.Partition().PartitionCapacity(partition.NewPartitionCapacityParams().WithBody(&models.V1PartitionCapacityRequest{}).WithContext(ctx), nil)
+func (c *collector) partitionMetrics(ctx context.Context) error {
+	resp, err := c.client.Partition().PartitionCapacity(partition.NewPartitionCapacityParams().WithBody(&models.V1PartitionCapacityRequest{}).WithContext(ctx), nil)
 	if err != nil {
 		return fmt.Errorf("error retrieving partitions: %w", err)
 	}
@@ -361,25 +386,25 @@ func partitionMetrics(ctx context.Context) error {
 				size = pointer.SafeDeref(s.Size)
 			)
 
-			storeGauge(metalPartitionCapacityTotal, float64(s.Total), pID, size)
-			storeGauge(metalPartitionCapacityAllocated, float64(s.Allocated), pID, size)
-			storeGauge(metalPartitionCapacityWaiting, float64(s.Waiting), pID, size)
-			storeGauge(metalPartitionCapacityFree, float64(s.Allocatable), pID, size)
-			storeGauge(metalPartitionCapacityAllocatable, float64(s.Allocatable), pID, size)
-			storeGauge(metalPartitionCapacityFaulty, float64(s.Faulty), pID, size)
-			storeGauge(metalPartitionCapacityReservationsTotal, float64(s.Reservations), pID, size)
-			storeGauge(metalPartitionCapacityReservationsUsed, float64(s.Usedreservations), pID, size)
-			storeGauge(metalPartitionCapacityPhonedHome, float64(s.PhonedHome), pID, size)
-			storeGauge(metalPartitionCapacityUnavailable, float64(s.Unavailable), pID, size)
-			storeGauge(metalPartitionCapacityOther, float64(s.Other), pID, size)
+			c.storeGauge(metalPartitionCapacityTotal, float64(s.Total), pID, size)
+			c.storeGauge(metalPartitionCapacityAllocated, float64(s.Allocated), pID, size)
+			c.storeGauge(metalPartitionCapacityWaiting, float64(s.Waiting), pID, size)
+			c.storeGauge(metalPartitionCapacityFree, float64(s.Allocatable), pID, size)
+			c.storeGauge(metalPartitionCapacityAllocatable, float64(s.Allocatable), pID, size)
+			c.storeGauge(metalPartitionCapacityFaulty, float64(s.Faulty), pID, size)
+			c.storeGauge(metalPartitionCapacityReservationsTotal, float64(s.Reservations), pID, size)
+			c.storeGauge(metalPartitionCapacityReservationsUsed, float64(s.Usedreservations), pID, size)
+			c.storeGauge(metalPartitionCapacityPhonedHome, float64(s.PhonedHome), pID, size)
+			c.storeGauge(metalPartitionCapacityUnavailable, float64(s.Unavailable), pID, size)
+			c.storeGauge(metalPartitionCapacityOther, float64(s.Other), pID, size)
 		}
 	}
 
 	return nil
 }
 
-func imageMetrics(ctx context.Context) error {
-	resp, err := client.Image().ListImages(image.NewListImagesParams().WithShowUsage(pointer.Pointer(true)).WithContext(ctx), nil)
+func (c *collector) imageMetrics(ctx context.Context) error {
+	resp, err := c.client.Image().ListImages(image.NewListImagesParams().WithShowUsage(pointer.Pointer(true)).WithContext(ctx), nil)
 	if err != nil {
 		return fmt.Errorf("error retrieving images: %w", err)
 	}
@@ -397,27 +422,27 @@ func imageMetrics(ctx context.Context) error {
 			features       = strings.Join(i.Features, ",")
 		)
 
-		storeGauge(metalImageUsedTotal, float64(usage), id, i.Name, i.Classification, created, expirationDate, features)
+		c.storeGauge(metalImageUsedTotal, float64(usage), id, i.Name, i.Classification, created, expirationDate, features)
 	}
 
 	return nil
 }
 
-func projectMetrics(ctx context.Context) error {
-	resp, err := client.Project().ListProjects(project.NewListProjectsParams().WithContext(ctx), nil)
+func (c *collector) projectMetrics(ctx context.Context) error {
+	resp, err := c.client.Project().ListProjects(project.NewListProjectsParams().WithContext(ctx), nil)
 	if err != nil {
 		return fmt.Errorf("error retrieving images: %w", err)
 	}
 
 	for _, p := range resp.Payload {
-		storeGauge(metalProjectInfo, float64(1.0), p.Meta.ID, p.Name, p.TenantID)
+		c.storeGauge(metalProjectInfo, float64(1.0), p.Meta.ID, p.Name, p.TenantID)
 	}
 
 	return nil
 }
 
-func switchMetrics(ctx context.Context) error {
-	resp, err := client.SwitchOperations().ListSwitches(switch_operations.NewListSwitchesParams().WithContext(ctx), nil)
+func (c *collector) switchMetrics(ctx context.Context) error {
+	resp, err := c.client.SwitchOperations().ListSwitches(switch_operations.NewListSwitchesParams().WithContext(ctx), nil)
 	if err != nil {
 		return fmt.Errorf("error retrieving switches: %w", err)
 	}
@@ -451,31 +476,31 @@ func switchMetrics(ctx context.Context) error {
 			metalCoreUp = 0.0
 		}
 
-		storeGauge(metalSwitchInfo, 1.0, s.Name, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
-		storeGauge(metalSwitchMetalCoreUp, metalCoreUp, s.Name, partitionID, rackID)
-		storeGauge(metalSwitchSyncFailed, syncFailed, s.Name, partitionID, rackID)
-		storeGaugeTimestamp(lastSync, metalSwitchSyncDurationsMs, lastSyncDurationMs, s.Name, partitionID, rackID)
+		c.storeGauge(metalSwitchInfo, 1.0, s.Name, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
+		c.storeGauge(metalSwitchMetalCoreUp, metalCoreUp, s.Name, partitionID, rackID)
+		c.storeGauge(metalSwitchSyncFailed, syncFailed, s.Name, partitionID, rackID)
+		c.storeGaugeTimestamp(lastSync, metalSwitchSyncDurationsMs, lastSyncDurationMs, s.Name, partitionID, rackID)
 
-		for _, c := range s.Connections {
-			storeGauge(metalSwitchInterfaceInfo, 1.0, s.Name, pointer.SafeDeref(pointer.SafeDeref(c.Nic).Name), c.MachineID, partitionID)
+		for _, conn := range s.Connections {
+			c.storeGauge(metalSwitchInterfaceInfo, 1.0, s.Name, pointer.SafeDeref(pointer.SafeDeref(conn.Nic).Name), conn.MachineID, partitionID)
 		}
 	}
 
 	return nil
 }
 
-func machineMetrics(ctx context.Context) error {
-	machines, err := client.Machine().FindIPMIMachines(machine.NewFindIPMIMachinesParams().WithBody(&models.V1MachineFindRequest{}).WithContext(ctx), nil)
+func (c *collector) machineMetrics(ctx context.Context) error {
+	machines, err := c.client.Machine().FindIPMIMachines(machine.NewFindIPMIMachinesParams().WithBody(&models.V1MachineFindRequest{}).WithContext(ctx), nil)
 	if err != nil {
 		return fmt.Errorf("error retrieving machines: %w", err)
 	}
 
-	allIssues, err := client.Machine().ListIssues(machine.NewListIssuesParams().WithContext(ctx), nil)
+	allIssues, err := c.client.Machine().ListIssues(machine.NewListIssuesParams().WithContext(ctx), nil)
 	if err != nil {
 		return fmt.Errorf("error retrieving machine issues list: %w", err)
 	}
 
-	issues, err := client.Machine().Issues(machine.NewIssuesParams().WithBody(&models.V1MachineIssuesRequest{
+	issues, err := c.client.Machine().Issues(machine.NewIssuesParams().WithBody(&models.V1MachineIssuesRequest{
 		LastErrorThreshold: pointer.Pointer(int64(1 * time.Hour)),
 	}).WithContext(ctx), nil)
 	if err != nil {
@@ -503,7 +528,7 @@ func machineMetrics(ctx context.Context) error {
 
 		allIssuesByID[*issue.ID] = true
 
-		storeGauge(metalMachineIssuesInfo, 1.0, *issue.ID, pointer.SafeDeref(issue.Description), pointer.SafeDeref(issue.Severity), pointer.SafeDeref(issue.RefURL))
+		c.storeGauge(metalMachineIssuesInfo, 1.0, *issue.ID, pointer.SafeDeref(issue.Description), pointer.SafeDeref(issue.Severity), pointer.SafeDeref(issue.RefURL))
 	}
 
 	for _, m := range machines.Payload {
@@ -559,11 +584,11 @@ func machineMetrics(ctx context.Context) error {
 					powerstate = -1
 				}
 
-				storeGauge(metalMachinePowerState, powerstate, *m.ID)
+				c.storeGauge(metalMachinePowerState, powerstate, *m.ID)
 			}
 
 			if m.Ipmi.Powersupplies != nil {
-				storeGauge(metalMachinePowerSuppliesTotal, float64(len(m.Ipmi.Powersupplies)), *m.ID)
+				c.storeGauge(metalMachinePowerSuppliesTotal, float64(len(m.Ipmi.Powersupplies)), *m.ID)
 
 				healthy := 0
 				for _, ps := range m.Ipmi.Powersupplies {
@@ -572,11 +597,11 @@ func machineMetrics(ctx context.Context) error {
 					}
 				}
 
-				storeGauge(metalMachinePowerSuppliesHealthy, float64(healthy), *m.ID)
+				c.storeGauge(metalMachinePowerSuppliesHealthy, float64(healthy), *m.ID)
 			}
 
 			if m.Ipmi.Powermetric != nil && m.Ipmi.Powermetric.Averageconsumedwatts != nil {
-				storeGauge(metalMachinePowerUsage, float64(pointer.SafeDeref(m.Ipmi.Powermetric.Averageconsumedwatts)), *m.ID)
+				c.storeGauge(metalMachinePowerUsage, float64(pointer.SafeDeref(m.Ipmi.Powermetric.Averageconsumedwatts)), *m.ID)
 			}
 
 			size := "UNKNOWN"
@@ -585,25 +610,25 @@ func machineMetrics(ctx context.Context) error {
 			}
 
 			if m.Bios != nil && m.Ipmi.Fru != nil {
-				storeGauge(metalMachineHardwareInfo, 1.0, *m.ID, partitionID, size, pointer.SafeDeref(m.Ipmi.Bmcversion),
+				c.storeGauge(metalMachineHardwareInfo, 1.0, *m.ID, partitionID, size, pointer.SafeDeref(m.Ipmi.Bmcversion),
 					pointer.SafeDeref(m.Bios.Version), m.Ipmi.Fru.ChassisPartNumber, m.Ipmi.Fru.ChassisPartSerial, m.Ipmi.Fru.BoardMfg, m.Ipmi.Fru.BoardMfgSerial, m.Ipmi.Fru.BoardPartNumber,
 					m.Ipmi.Fru.ProductManufacturer, m.Ipmi.Fru.ProductPartNumber, m.Ipmi.Fru.ProductSerial)
 			}
 		}
 
-		storeGauge(metalMachineAllocationInfo, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state)
+		c.storeGauge(metalMachineAllocationInfo, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state)
 
 		for issueID := range allIssuesByID {
 			issues, ok := issuesByMachineID[*m.ID]
 			if !ok {
-				storeGauge(metalMachineIssues, 1.0, *m.ID, issueID)
+				c.storeGauge(metalMachineIssues, 1.0, *m.ID, issueID)
 				continue
 			}
 
 			if slices.Contains(issues, issueID) {
-				storeGauge(metalMachineIssues, 1.0, *m.ID, issueID)
+				c.storeGauge(metalMachineIssues, 1.0, *m.ID, issueID)
 			} else {
-				storeGauge(metalMachineIssues, 0.0, *m.ID, issueID)
+				c.storeGauge(metalMachineIssues, 0.0, *m.ID, issueID)
 			}
 		}
 	}
