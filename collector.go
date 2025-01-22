@@ -457,7 +457,7 @@ func switchMetrics(ctx context.Context) error {
 		storeGaugeTimestamp(lastSync, metalSwitchSyncDurationsMs, lastSyncDurationMs, s.Name, partitionID, rackID)
 
 		for _, c := range s.Connections {
-			storeGauge(metalSwitchInterfaceInfo, 1.0, pointer.SafeDeref(pointer.SafeDeref(c.Nic).Name), c.MachineID, partitionID)
+			storeGauge(metalSwitchInterfaceInfo, 1.0, s.Name, pointer.SafeDeref(pointer.SafeDeref(c.Nic).Name), c.MachineID, partitionID)
 		}
 	}
 
