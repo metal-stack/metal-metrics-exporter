@@ -7,12 +7,10 @@ import (
 	"time"
 
 	metalgo "github.com/metal-stack/metal-go"
+	"github.com/metal-stack/metal-metrics-exporter/pkg/collector"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-)
-
-var (
-	client metalgo.Client
 )
 
 func main() {
@@ -34,7 +32,7 @@ func main() {
 		err error
 	)
 
-	client, err = metalgo.NewDriver(url, "", hmac)
+	client, err := metalgo.NewDriver(url, "", hmac)
 	if err != nil {
 		log.Error("error creating client", "error", err)
 		os.Exit(1)
@@ -52,23 +50,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	c := collector.New(client, updateTimeout)
+
+	prometheus.MustRegister(c)
+
+	// initialize metrics before starting to serve them to prevent empty values
+	log.Info("initializing metrics...")
+
+	err = c.Update()
+	if err != nil {
+		log.Error("error during initial update", "error", err)
+		os.Exit(1)
+	}
+
 	go func() {
 		var (
-			initialUpdateSuccess = false
-			failCount            = 0
+			failCount = 0
 		)
 
 		for {
+			log.Info("next fetch in " + fetchInterval.String())
+			time.Sleep(fetchInterval)
+
 			log.Info("updating metrics...")
 			start := time.Now()
 
-			err = update(updateTimeout)
+			err = c.Update()
 			if err != nil {
-				if !initialUpdateSuccess {
-					log.Error("error during initial update", "error", err)
-					os.Exit(1)
-				}
-
 				log.Error("error during update", "error", err, "took", time.Since(start).String(), "fail-count", failCount)
 				failCount++
 
@@ -77,13 +85,9 @@ func main() {
 					os.Exit(1)
 				}
 			} else {
-				initialUpdateSuccess = true
 				failCount = 0
 				log.Info("metrics updated successfully", "took", time.Since(start).String())
 			}
-
-			log.Info("next fetch in " + fetchInterval.String())
-			time.Sleep(fetchInterval)
 		}
 	}()
 
