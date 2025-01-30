@@ -3,7 +3,7 @@ module github.com/metal-stack/metal-metrics-exporter
 go 1.23
 
 require (
-	github.com/metal-stack/metal-go v0.39.4
+	github.com/metal-stack/metal-go v0.39.6
 	github.com/metal-stack/metal-lib v0.19.0
 	github.com/prometheus/client_golang v1.20.5
 	golang.org/x/sync v0.10.0

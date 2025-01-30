@@ -106,4 +106,9 @@ metal_machine_power_supplies_total{machineid="11111111-2222-3333-4444-aabbccddee
 # HELP metal_machine_power_usage Provide information about the machine power usage in watts
 # TYPE metal_machine_power_usage gauge
 metal_machine_power_usage{machineid="11111111-2222-3333-4444-aabbccddeeff"} 69
+
+# HELP metal_switch_interface_bgp_established_timestamp Provide the unix timestamp since BGP is established on the interfaces (0 if not established)
+# TYPE metal_switch_interface_bgp_established_timestamp gauge
+metal_switch_interface_bgp_established_timestamp{device="Ethernet2",machineid="11111111-2222-3333-4444-aabbccddeeff",partition="fra-equ01",switchname="fra-equ01-r02leaf01"} 0
+metal_switch_interface_bgp_established_timestamp{device="Ethernet2",machineid="11111111-2222-3333-4444-aabbccddeeff",partition="fra-equ01",switchname="fra-equ01-r02leaf02"} 1.731591734e+09
 ```
