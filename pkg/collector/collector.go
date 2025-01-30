@@ -42,6 +42,7 @@ var (
 		metalProjectInfo,
 		metalSwitchInfo,
 		metalSwitchInterfaceInfo,
+		switchInterfaceBGPTimeStampEstablished,
 		metalSwitchMetalCoreUp,
 		metalSwitchSyncFailed,
 		metalSwitchSyncDurationsMs,
@@ -194,6 +195,11 @@ var (
 		"Provide information about the switch interfaces",
 		[]string{"switchname", "device", "machineid", "partition"},
 		nil,
+	)
+	switchInterfaceBGPTimeStampEstablished = prometheus.NewDesc(
+		"metal_switch_interface_bgp_established_timestamp",
+		"Provide the unix timestamp since BGP is established on the interfaces (0 if not established)",
+		[]string{"switchname", "device", "machineid", "partition"}, nil,
 	)
 	metalSwitchMetalCoreUp = prometheus.NewDesc(
 		"metal_switch_metal_core_up",
@@ -483,6 +489,11 @@ func (c *collector) switchMetrics(ctx context.Context) error {
 
 		for _, conn := range s.Connections {
 			c.storeGauge(metalSwitchInterfaceInfo, 1.0, s.Name, pointer.SafeDeref(pointer.SafeDeref(conn.Nic).Name), conn.MachineID, partitionID)
+			if conn.Nic.BgpPortState != nil {
+				c.storeGauge(switchInterfaceBGPTimeStampEstablished, float64(pointer.SafeDeref(conn.Nic.BgpPortState.BgpTimerUpEstablished)), s.Name, pointer.SafeDeref(pointer.SafeDeref(conn.Nic).Name), conn.MachineID, partitionID)
+			}
+
+
 		}
 	}
 
