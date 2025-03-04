@@ -11,7 +11,7 @@ metal_image_used_total{classification="preview",created="1588078965",expirationD
 
 # HELP metal_network_info Shows available prefixes in a network
 # TYPE metal_network_info gauge
-metal_network_info{description="",destPrefixes="",isPrivateSuper="false",isUnderlay="false",name="ausfalltest",networkId="020966ab-18da-40d6-ba69-fea8d60e6074",parentNetworkID="tenant-super-network-nbg-w8101",partition="nbg-w8101",prefixes="10.91.112.0/22",projectId="c77daafe-58f8-44df-82eb-6ef631cee3c9",useNat="false",vrf="454"} 1
+metal_network_info{clusterTag="d8f75911-b73f-4ae9-a419-67ead8ab0192",description="",destPrefixes="",isPrivateSuper="false",isUnderlay="false",name="ausfalltest",networkId="020966ab-18da-40d6-ba69-fea8d60e6074",parentNetworkID="tenant-super-network-nbg-w8101",partition="nbg-w8101",prefixes="10.91.112.0/22",projectId="c77daafe-58f8-44df-82eb-6ef631cee3c9",useNat="false",vrf="454"} 1
 
 # HELP metal_network_ip_available The total number of available IPs of the network
 # TYPE metal_network_ip_available gauge
