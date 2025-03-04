@@ -79,7 +79,7 @@ var (
 	metalNetworkInfo = prometheus.NewDesc(
 		"metal_network_info",
 		"Provide information about the network",
-		[]string{"networkId", "name", "projectId", "description", "partition", "vrf", "prefixes", "destPrefixes", "parentNetworkID", "isPrivateSuper", "useNat", "isUnderlay"},
+		[]string{"networkId", "name", "projectId", "description", "partition", "vrf", "prefixes", "destPrefixes", "parentNetworkID", "isPrivateSuper", "useNat", "isUnderlay", "clusterTag"},
 		nil,
 	)
 	metalNetworkUsedIPs = prometheus.NewDesc(
@@ -354,9 +354,14 @@ func (c *collector) networkMetrics(ctx context.Context) error {
 			prefixes     = strings.Join(nw.Prefixes, ",")
 			destPrefixes = strings.Join(nw.Destinationprefixes, ",")
 			vrf          = fmt.Sprintf("%d", nw.Vrf)
+			clusterId    = ""
 		)
 
-		c.storeGauge(metalNetworkInfo, 1.0, nwID, nw.Name, nw.Projectid, nw.Description, nw.Partitionid, vrf, prefixes, destPrefixes, nw.Parentnetworkid, privateSuper, nat, underlay)
+		if id, ok := nw.Labels[metaltag.ClusterID]; ok {
+			clusterId = id
+		}
+
+		c.storeGauge(metalNetworkInfo, 1.0, nwID, nw.Name, nw.Projectid, nw.Description, nw.Partitionid, vrf, prefixes, destPrefixes, nw.Parentnetworkid, privateSuper, nat, underlay, clusterId)
 
 		if nw.Usage == nil {
 			continue
@@ -492,7 +497,6 @@ func (c *collector) switchMetrics(ctx context.Context) error {
 			if conn.Nic.BgpPortState != nil {
 				c.storeGauge(switchInterfaceBGPTimeStampEstablished, float64(pointer.SafeDeref(conn.Nic.BgpPortState.BgpTimerUpEstablished)), s.Name, pointer.SafeDeref(pointer.SafeDeref(conn.Nic).Name), conn.MachineID, partitionID)
 			}
-
 
 		}
 	}
