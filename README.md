@@ -5,6 +5,10 @@ A simple exporter for metal-api metrics.
 ## sample output
 
 ```text
+# HELP metal_machine_allocation_info Provide information about the machine allocation
+# TYPE metal_machine_allocation_info gauge
+metal_machine_allocation_info{clusterTag="00713837-544e-47dd-a55b-52b65a00f8e9",machineid="00000000-0000-0000-0000-ac1f6b7b77c8",machinename="shoot--pbs4kr--test-group-0-5cb6b-585wc",partition="fra-equ01",primaryASN="4210000047",role="machine",state="AVAILABLE",imageId="debian-12.0.20250402"} 1
+
 # HELP metal_image_used_total The total number of machines using a image
 # TYPE metal_image_used_total gauge
 metal_image_used_total{classification="preview",created="1588078965",expirationDate="1598533365",features="firewall",imageID="firewall-ubuntu-2.0.20200331",name="Firewall 2 Ubuntu 20200331"} 2
