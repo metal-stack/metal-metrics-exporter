@@ -224,7 +224,7 @@ var (
 	metalMachineAllocationInfo = prometheus.NewDesc(
 		"metal_machine_allocation_info",
 		"Provide information about the machine allocation",
-		[]string{"machineid", "partition", "machinename", "clusterTag", "primaryASN", "role", "state"},
+		[]string{"machineid", "partition", "machinename", "clusterTag", "primaryASN", "role", "state", "imageId"},
 		nil,
 	)
 	metalMachineIssuesInfo = prometheus.NewDesc(
@@ -560,6 +560,7 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 			clusterID   = "NOTALLOCATED"
 			primaryASN  = "NOTALLOCATED"
 			state       = "AVAILABLE"
+			imageId     = "NOTALLOCATED"
 		)
 
 		if m.State != nil && m.State.Value != nil && *m.State.Value != "" {
@@ -573,6 +574,10 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 
 			if m.Allocation.Hostname != nil {
 				hostname = *m.Allocation.Hostname
+			}
+
+			if m.Allocation.Image != nil && m.Allocation.Image.ID != nil {
+				imageId = *m.Allocation.Image.ID
 			}
 
 			tm := metaltag.NewTagMap(m.Tags)
@@ -631,7 +636,7 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 			}
 		}
 
-		c.storeGauge(metalMachineAllocationInfo, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state)
+		c.storeGauge(metalMachineAllocationInfo, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state, imageId)
 
 		for issueID := range allIssuesByID {
 			issues, ok := issuesByMachineID[*m.ID]
