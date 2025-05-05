@@ -5,13 +5,17 @@ A simple exporter for metal-api metrics.
 ## sample output
 
 ```text
+# HELP metal_machine_allocation_info Provide information about the machine allocation
+# TYPE metal_machine_allocation_info gauge
+metal_machine_allocation_info{clusterTag="00713837-544e-47dd-a55b-52b65a00f8e9",machineid="00000000-0000-0000-0000-ac1f6b7b77c8",machinename="shoot--pbs4kr--test-group-0-5cb6b-585wc",partition="fra-equ01",primaryASN="4210000047",role="machine",state="AVAILABLE",imageId="debian-12.0.20250402"} 1
+
 # HELP metal_image_used_total The total number of machines using a image
 # TYPE metal_image_used_total gauge
 metal_image_used_total{classification="preview",created="1588078965",expirationDate="1598533365",features="firewall",imageID="firewall-ubuntu-2.0.20200331",name="Firewall 2 Ubuntu 20200331"} 2
 
 # HELP metal_network_info Shows available prefixes in a network
 # TYPE metal_network_info gauge
-metal_network_info{description="",destPrefixes="",isPrivateSuper="false",isUnderlay="false",name="ausfalltest",networkId="020966ab-18da-40d6-ba69-fea8d60e6074",parentNetworkID="tenant-super-network-nbg-w8101",partition="nbg-w8101",prefixes="10.91.112.0/22",projectId="c77daafe-58f8-44df-82eb-6ef631cee3c9",useNat="false",vrf="454"} 1
+metal_network_info{clusterTag="d8f75911-b73f-4ae9-a419-67ead8ab0192",description="",destPrefixes="",isPrivateSuper="false",isUnderlay="false",name="ausfalltest",networkId="020966ab-18da-40d6-ba69-fea8d60e6074",parentNetworkID="tenant-super-network-nbg-w8101",partition="nbg-w8101",prefixes="10.91.112.0/22",projectId="c77daafe-58f8-44df-82eb-6ef631cee3c9",useNat="false",vrf="454"} 1
 
 # HELP metal_network_ip_available The total number of available IPs of the network
 # TYPE metal_network_ip_available gauge
