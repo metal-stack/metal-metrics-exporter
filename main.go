@@ -32,7 +32,7 @@ func main() {
 		err error
 	)
 
-	client, err := metalgo.NewDriver(url, "", hmac)
+	client, err := metalgo.NewDriver(url, "", hmac, metalgo.AuthType("Metal-View"))
 	if err != nil {
 		log.Error("error creating client", "error", err)
 		os.Exit(1)
