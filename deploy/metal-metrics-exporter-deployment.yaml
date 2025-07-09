@@ -36,6 +36,11 @@ spec:
                 secretKeyRef:
                   name: metal-metrics-exporter-config
                   key: hmac
+            - name: METAL_API_AUTH_TYPE
+              valueFrom:
+                secretKeyRef:
+                  key: authtype
+                  name: metal-metrics-exporter-config
           securityContext:
             runAsUser: 999
             allowPrivilegeEscalation: false
