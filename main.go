@@ -26,13 +26,13 @@ func main() {
 
 		url              = os.Getenv("METAL_API_URL")
 		hmac             = os.Getenv("METAL_API_HMAC")
-		fetchIntervalEnv = envOrDefault("FETCH_INTERVAL", "90s") // time to sleep after every metrics fetch
-		updateTimeoutEnv = envOrDefault("UPDATE_TIMEOUT", "60s") // maximum time for metal-api to respond to all our requests until context gets cancelled
+		authType         = envOrDefault("METAL_API_AUTH_TYPE", "Metal-Admin") // backward compatibility, use "Metal-View" for read-only access
+		fetchIntervalEnv = envOrDefault("FETCH_INTERVAL", "90s")              // time to sleep after every metrics fetch
+		updateTimeoutEnv = envOrDefault("UPDATE_TIMEOUT", "60s")              // maximum time for metal-api to respond to all our requests until context gets cancelled
 
 		err error
 	)
-
-	client, err := metalgo.NewDriver(url, "", hmac)
+	client, err := metalgo.NewDriver(url, "", hmac, metalgo.AuthType(authType))
 	if err != nil {
 		log.Error("error creating client", "error", err)
 		os.Exit(1)
