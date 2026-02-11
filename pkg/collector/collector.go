@@ -524,8 +524,6 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 
 	issuesByMachineID := map[string][]string{}
 	for _, issue := range issues.Payload {
-		issue := issue
-
 		if issue.Machineid == nil {
 			continue
 		}
@@ -535,8 +533,6 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 
 	allIssuesByID := map[string]bool{}
 	for _, issue := range allIssues.Payload {
-		issue := issue
-
 		if issue.ID == nil {
 			continue
 		}
@@ -547,8 +543,6 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 	}
 
 	for _, m := range machines.Payload {
-		m := m
-
 		if m.ID == nil {
 			continue
 		}
