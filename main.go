@@ -34,11 +34,10 @@ func main() {
 		err error
 	)
 	client, err := apiv2client.New(&apiv2client.DialConfig{
-		BaseURL:      url,
-		Token:        token,
-		TokenRenewal: &apiv2client.TokenRenewal{
-			// FIXME
-		},
+		BaseURL: url,
+		Token:   token,
+		// FIXME use tokenfile and refresh sidecar
+		Log: log,
 	})
 	if err != nil {
 		log.Error("error creating client", "error", err)
