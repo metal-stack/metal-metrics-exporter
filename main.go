@@ -27,17 +27,16 @@ func main() {
 		log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 		url              = os.Getenv("METAL_API_URL")
-		token            = os.Getenv("METAL_API_TOKEN")
+		tokenFile        = os.Getenv("METAL_API_TOKEN_FILE")
 		fetchIntervalEnv = envOrDefault("FETCH_INTERVAL", "90s") // time to sleep after every metrics fetch
 		updateTimeoutEnv = envOrDefault("UPDATE_TIMEOUT", "60s") // maximum time for metal-api to respond to all our requests until context gets cancelled
 
 		err error
 	)
 	client, err := apiv2client.New(&apiv2client.DialConfig{
-		BaseURL: url,
-		Token:   token,
-		// FIXME use tokenfile and refresh sidecar
-		Log: log,
+		BaseURL:   url,
+		TokenFile: tokenFile,
+		Log:       log,
 	})
 	if err != nil {
 		log.Error("error creating client", "error", err)
