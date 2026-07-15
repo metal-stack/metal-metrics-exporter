@@ -346,11 +346,14 @@ func (c *collector) networkMetrics(ctx context.Context) error {
 			underlay     = nw.Type == apiv2.NetworkType_NETWORK_TYPE_UNDERLAY
 			prefixes     = strings.Join(nw.Prefixes, ",")
 			destPrefixes = strings.Join(nw.DestinationPrefixes, ",")
-			vrf          = fmt.Sprintf("%d", nw.Vrf)
+			vrf          = ""
 
 			isSuperNetwork bool
 			clusterId      = ""
 		)
+		if nw.Vrf != nil {
+			vrf = fmt.Sprintf("%d", *nw.Vrf)
+		}
 
 		if nw.Meta != nil && nw.Meta.Labels != nil && nw.Meta.Labels.Labels != nil {
 			if id, ok := nw.Meta.Labels.Labels[tag.ClusterID]; ok {
