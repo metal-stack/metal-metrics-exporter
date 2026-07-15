@@ -365,7 +365,8 @@ func (c *collector) networkMetrics(ctx context.Context) error {
 			isSuperNetwork = true
 		}
 
-		c.storeGauge(metalNetworkInfo, 1.0, nwID, nw.Id,
+		c.storeGauge(metalNetworkInfo, 1.0, nwID,
+			pointer.SafeDeref(nw.Name),
 			pointer.SafeDeref(nw.Project),
 			pointer.SafeDeref(nw.Description),
 			pointer.SafeDeref(nw.Partition),
