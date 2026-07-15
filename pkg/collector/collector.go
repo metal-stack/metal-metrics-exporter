@@ -442,7 +442,12 @@ func (c *collector) imageMetrics(ctx context.Context) error {
 			features       = strings.Join(imageFeatures, ",")
 		)
 
-		c.storeGauge(metalImageUsedTotal, float64(usage), id, *i.Image.Name, i.Image.Classification.String(), created, expirationDate, features)
+		classification, err := enum.GetStringValue(i.Image.Classification)
+		if err != nil {
+			return fmt.Errorf("unable to get image classification string: %w", err)
+		}
+
+		c.storeGauge(metalImageUsedTotal, float64(usage), id, *i.Image.Name, *classification, created, expirationDate, features)
 	}
 
 	return nil
