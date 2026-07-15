@@ -487,13 +487,21 @@ func (c *collector) switchMetrics(ctx context.Context) error {
 
 			partitionID = s.Partition
 			rackID      = pointer.SafeDeref(s.Rack)
-			osVendor    = pointer.SafeDeref(s.Os).Vendor.String()
+			osVendor    = ""
 			osVersion   = pointer.SafeDeref(s.Os).Version
 			// metal core version is very long: v0.9.1 (1d5e42ea), tags/v0.9.1-0-g1d5e42e, go1.20.5
 			metalCoreVersion = strings.Split(pointer.SafeDeref(s.Os).MetalCoreVersion, ",")[0]
 			metalCoreUp      = 1.0
 			managementIP     = s.ManagementIp
 		)
+
+		if s.Os != nil {
+			vendor, err := enum.GetStringValue(s.Os.Vendor)
+			if err != nil {
+				return fmt.Errorf("unable to get switch os vendor string: %w", err)
+			}
+			osVendor = *vendor
+		}
 
 		if lastSyncError.After(lastSync) {
 			syncFailed = 1.0
