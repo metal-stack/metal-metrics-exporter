@@ -34,9 +34,10 @@ func main() {
 		err error
 	)
 	client, err := apiv2client.New(&apiv2client.DialConfig{
-		BaseURL:   url,
-		TokenFile: tokenFile,
-		Log:       log,
+		BaseURL:                 url,
+		TokenFile:               tokenFile,
+		TokenFileRereadDuration: 5 * time.Minute,
+		Log:                     log,
 	})
 	if err != nil {
 		log.Error("error creating client", "error", err)
