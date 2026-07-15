@@ -588,7 +588,7 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			state = *stateString
+			state = strings.ToUpper(*stateString)
 		}
 
 		if m.Allocation != nil {
