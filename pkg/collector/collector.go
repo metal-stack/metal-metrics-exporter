@@ -558,13 +558,20 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 
 	allIssuesByID := map[string]bool{}
 	for _, issue := range allIssues.Issues {
-		allIssuesByID[issue.Uuid] = true
 		for _, i := range issue.Issues {
+			issueID, err := enum.GetStringValue(i.Type)
+			if err != nil {
+				return fmt.Errorf("unable to get issue string: %w", err)
+			}
+			if _, ok := allIssuesByID[*issueID]; ok {
+				continue
+			}
+			allIssuesByID[*issueID] = true
 			severityString, err := enum.GetStringValue(i.Severity)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to get issue severity string: %w", err)
 			}
-			c.storeGauge(metalMachineIssuesInfo, 1.0, issue.Uuid, i.Description, *severityString, i.ReferenceUrl)
+			c.storeGauge(metalMachineIssuesInfo, 1.0, *issueID, i.Description, *severityString, i.ReferenceUrl)
 		}
 	}
 
