@@ -20,8 +20,8 @@ github.com/klauspost/connect-compress/v2 v2.1.1 h1:ycZNp4rWOZBodVE2Ls5AzK4aHkyK+
 github.com/klauspost/connect-compress/v2 v2.1.1/go.mod h1:9oilsPHJMzGKkjafSBk9J7iVo4mO+dw0G0KSdVpnlVE=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
-github.com/metal-stack/api v0.2.6 h1:0NsuvonF8IJilGzJte4j6LB5VPKkoRpJv9V2EjXhqrk=
-github.com/metal-stack/api v0.2.6/go.mod h1:nl0Uae2h/EpfX6myaVsg8G7pptCON/Gz35sNlffpBAw=
+github.com/metal-stack/api v0.3.0 h1:AFk7oEfcnClJx1cOcM/iUEESh5ri8uGA8K1g9d3NHFE=
+github.com/metal-stack/api v0.3.0/go.mod h1:nl0Uae2h/EpfX6myaVsg8G7pptCON/Gz35sNlffpBAw=
 github.com/metal-stack/metal-lib v0.25.2 h1:OW8y6PtlV5lv3bXSDU1MaNGvtbroiDYjuhSxqKHKAgw=
 github.com/metal-stack/metal-lib v0.25.2/go.mod h1:tnx4MM5oml10EMN6Nq6oFSbjOKB9B27WUZQUyZ4MywA=
 github.com/minio/minlz v1.2.0 h1:6IOBuiHg04QxvbFfgFLT/9sMaO/UhL7S+ApW1mK8q5A=
