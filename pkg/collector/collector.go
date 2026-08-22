@@ -541,6 +541,11 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 		return fmt.Errorf("error retrieving machine bmcs: %w", err)
 	}
 
+	bmcs := make(map[string]*apiv2.MachineBMCDetails)
+	for _, machineBMC := range machineBMCs.BmcDetails {
+		bmcs[machineBMC.Uuid] = machineBMC
+	}
+
 	allIssues, err := c.client.Adminv2().Machine().Issues(ctx, &adminv2.MachineServiceIssuesRequest{})
 	if err != nil {
 		return fmt.Errorf("error retrieving machine issues list: %w", err)
@@ -632,10 +637,14 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 			partitionID = m.Partition.Id
 		}
 
-		if machineBMC, ok := machineBMCs.BmcReports[m.Uuid]; ok {
+		if machineBMC, ok := bmcs[m.Uuid]; ok {
+			if machineBMC.BmcReport == nil {
+				continue
+			}
+			bmcReport := machineBMC.BmcReport
 			var powerstate float64
-			if machineBMC.Bmc != nil {
-				switch machineBMC.Bmc.PowerState {
+			if bmcReport.Bmc != nil {
+				switch bmcReport.Bmc.PowerState {
 				case "ON":
 					powerstate = 1
 				case "OFF":
@@ -646,10 +655,10 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 				c.storeGauge(metalMachinePowerState, powerstate, m.Uuid)
 			}
 
-			c.storeGauge(metalMachinePowerSuppliesTotal, float64(len(machineBMC.PowerSupplies)), m.Uuid)
+			c.storeGauge(metalMachinePowerSuppliesTotal, float64(len(bmcReport.PowerSupplies)), m.Uuid)
 
 			healthy := 0
-			for _, ps := range machineBMC.PowerSupplies {
+			for _, ps := range bmcReport.PowerSupplies {
 				if ps.Health == "OK" {
 					healthy++
 				}
@@ -657,8 +666,8 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 
 			c.storeGauge(metalMachinePowerSuppliesHealthy, float64(healthy), m.Uuid)
 
-			if machineBMC.PowerMetric != nil {
-				c.storeGauge(metalMachinePowerUsage, float64(machineBMC.PowerMetric.AverageConsumedWatts), m.Uuid)
+			if bmcReport.PowerMetric != nil {
+				c.storeGauge(metalMachinePowerUsage, float64(bmcReport.PowerMetric.AverageConsumedWatts), m.Uuid)
 			}
 
 			size := "UNKNOWN"
@@ -666,18 +675,18 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 				size = m.Size.Id
 			}
 
-			if machineBMC.Fru != nil {
+			if bmcReport.Fru != nil {
 				c.storeGauge(metalMachineHardwareInfo, 1.0, m.Uuid, partitionID, size,
-					pointer.SafeDeref(machineBMC.Bmc).Version,
-					pointer.SafeDeref(machineBMC.Bios).Version,
-					pointer.SafeDeref(machineBMC.Fru.ChassisPartNumber),
-					pointer.SafeDeref(machineBMC.Fru.ChassisPartSerial),
-					pointer.SafeDeref(machineBMC.Fru.BoardMfg),
-					pointer.SafeDeref(machineBMC.Fru.BoardMfgSerial),
-					pointer.SafeDeref(machineBMC.Fru.BoardPartNumber),
-					pointer.SafeDeref(machineBMC.Fru.ProductManufacturer),
-					pointer.SafeDeref(machineBMC.Fru.ProductPartNumber),
-					pointer.SafeDeref(machineBMC.Fru.ProductSerial),
+					pointer.SafeDeref(bmcReport.Bmc).Version,
+					pointer.SafeDeref(bmcReport.Bios).Version,
+					pointer.SafeDeref(bmcReport.Fru.ChassisPartNumber),
+					pointer.SafeDeref(bmcReport.Fru.ChassisPartSerial),
+					pointer.SafeDeref(bmcReport.Fru.BoardMfg),
+					pointer.SafeDeref(bmcReport.Fru.BoardMfgSerial),
+					pointer.SafeDeref(bmcReport.Fru.BoardPartNumber),
+					pointer.SafeDeref(bmcReport.Fru.ProductManufacturer),
+					pointer.SafeDeref(bmcReport.Fru.ProductPartNumber),
+					pointer.SafeDeref(bmcReport.Fru.ProductSerial),
 				)
 			}
 		}
