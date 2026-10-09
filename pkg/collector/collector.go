@@ -38,6 +38,9 @@ var (
 		metalNetworkUsedPrefixes,
 		metalNetworkAvailablePrefixes,
 		metalProjectInfo,
+		metalComponentInfo,
+		metalComponentUp,
+		metalComponentTokenLifetime,
 		metalSwitchInfo,
 		metalSwitchInterfaceInfo,
 		switchInterfaceBGPTimeStampEstablished,
@@ -181,6 +184,26 @@ var (
 		nil,
 	)
 
+	// component
+	metalComponentInfo = prometheus.NewDesc(
+		"metal_component_info",
+		"Provide information about components connected to the metal-apiserver",
+		[]string{"uuid", "type", "identifier", "version", "revision", "gitSHA1", "startedAt", "reportedAt", "interval"},
+		nil,
+	)
+	metalComponentUp = prometheus.NewDesc(
+		"metal_component_up",
+		"1 when the component reported within its ping interval, otherwise 0",
+		[]string{"uuid", "type", "identifier"},
+		nil,
+	)
+	metalComponentTokenLifetime = prometheus.NewDesc(
+		"metal_component_token_lifetime_seconds",
+		"The remaining lifetime in seconds of the token used by the component",
+		[]string{"uuid", "type", "identifier", "token", "user"},
+		nil,
+	)
+
 	// switch
 	metalSwitchInfo = prometheus.NewDesc(
 		"metal_switch_info",
@@ -305,6 +328,7 @@ func (c *collector) Update() error {
 	g.Go(func() error { return c.partitionMetrics(ctx) })
 	g.Go(func() error { return c.imageMetrics(ctx) })
 	g.Go(func() error { return c.projectMetrics(ctx) })
+	g.Go(func() error { return c.componentMetrics(ctx) })
 	g.Go(func() error { return c.switchMetrics(ctx) })
 	g.Go(func() error { return c.machineMetrics(ctx) })
 
@@ -465,6 +489,45 @@ func (c *collector) projectMetrics(ctx context.Context) error {
 
 	for _, p := range resp.Projects {
 		c.storeGauge(metalProjectInfo, float64(1.0), p.Uuid, p.Name, p.Tenant)
+	}
+
+	return nil
+}
+
+func (c *collector) componentMetrics(ctx context.Context) error {
+	resp, err := c.client.Adminv2().Component().List(ctx, &adminv2.ComponentServiceListRequest{})
+	if err != nil {
+		return fmt.Errorf("error retrieving components: %w", err)
+	}
+
+	for _, component := range resp.Components {
+		typeString, err := enum.GetStringValue(component.Type)
+		if err != nil {
+			return fmt.Errorf("unable to get component type string: %w", err)
+		}
+
+		var (
+			version    = pointer.SafeDeref(component.Version).Version
+			revision   = pointer.SafeDeref(component.Version).Revision
+			gitSHA1    = pointer.SafeDeref(component.Version).GitSha1
+			startedAt  = component.StartedAt.AsTime()
+			reportedAt = component.ReportedAt.AsTime()
+			interval   = component.Interval.AsDuration()
+			up         = 1.0
+		)
+
+		if interval > 0 && time.Since(reportedAt) > interval {
+			up = 0.0
+		}
+
+		c.storeGauge(metalComponentInfo, 1.0, component.Uuid, *typeString, component.Identifier, version, revision, gitSHA1,
+			fmt.Sprintf("%d", startedAt.Unix()), fmt.Sprintf("%d", reportedAt.Unix()), interval.String())
+		c.storeGauge(metalComponentUp, up, component.Uuid, *typeString, component.Identifier)
+
+		if token := component.Token; token != nil && token.Expires != nil {
+			c.storeGauge(metalComponentTokenLifetime, time.Until(token.Expires.AsTime()).Seconds(),
+				component.Uuid, *typeString, component.Identifier, token.Uuid, token.User)
+		}
 	}
 
 	return nil

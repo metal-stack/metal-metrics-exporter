@@ -2,6 +2,7 @@
 
 | subject | methods                                        |
 |:-------:|------------------------------------------------|
+|         | /metalstack.admin.v2.ComponentService/List     |
 |         | /metalstack.admin.v2.ImageService/Usage        |
 |         | /metalstack.admin.v2.MachineService/Issues     |
 |         | /metalstack.admin.v2.MachineService/List       |
