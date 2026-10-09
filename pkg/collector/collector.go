@@ -4,27 +4,25 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	metalgo "github.com/metal-stack/metal-go"
-	"github.com/metal-stack/metal-go/api/client/image"
-	"github.com/metal-stack/metal-go/api/client/machine"
-	"github.com/metal-stack/metal-go/api/client/network"
-	"github.com/metal-stack/metal-go/api/client/partition"
-	"github.com/metal-stack/metal-go/api/client/project"
-	"github.com/metal-stack/metal-go/api/client/switch_operations"
-	"github.com/metal-stack/metal-go/api/models"
+	apiv2client "github.com/metal-stack/api/go/client"
+	"github.com/metal-stack/api/go/enum"
+	adminv2 "github.com/metal-stack/api/go/metalstack/admin/v2"
+	apiv2 "github.com/metal-stack/api/go/metalstack/api/v2"
+	"github.com/metal-stack/api/go/tag"
 	"github.com/metal-stack/metal-lib/pkg/pointer"
+	"google.golang.org/protobuf/types/known/durationpb"
 
-	metaltag "github.com/metal-stack/metal-lib/pkg/tag"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 )
 
 type collector struct {
-	client        metalgo.Client
+	client        apiv2client.Client
 	updateTimeout time.Duration
 
 	mu                         sync.Mutex
@@ -40,6 +38,9 @@ var (
 		metalNetworkUsedPrefixes,
 		metalNetworkAvailablePrefixes,
 		metalProjectInfo,
+		metalComponentInfo,
+		metalComponentUp,
+		metalComponentTokenLifetime,
 		metalSwitchInfo,
 		metalSwitchInterfaceInfo,
 		switchInterfaceBGPTimeStampEstablished,
@@ -183,6 +184,26 @@ var (
 		nil,
 	)
 
+	// component
+	metalComponentInfo = prometheus.NewDesc(
+		"metal_component_info",
+		"Provide information about components connected to the metal-apiserver",
+		[]string{"uuid", "type", "identifier", "version", "revision", "gitSHA1", "startedAt", "reportedAt", "interval"},
+		nil,
+	)
+	metalComponentUp = prometheus.NewDesc(
+		"metal_component_up",
+		"1 when the component reported within its ping interval, otherwise 0",
+		[]string{"uuid", "type", "identifier"},
+		nil,
+	)
+	metalComponentTokenLifetime = prometheus.NewDesc(
+		"metal_component_token_lifetime_seconds",
+		"The remaining lifetime in seconds of the token used by the component",
+		[]string{"uuid", "type", "identifier", "token", "user"},
+		nil,
+	)
+
 	// switch
 	metalSwitchInfo = prometheus.NewDesc(
 		"metal_switch_info",
@@ -272,7 +293,7 @@ var (
 	)
 )
 
-func New(client metalgo.Client, updateTimeout time.Duration) *collector {
+func New(client apiv2client.Client, updateTimeout time.Duration) *collector {
 	return &collector{
 		client:         client,
 		updateTimeout:  updateTimeout,
@@ -307,6 +328,7 @@ func (c *collector) Update() error {
 	g.Go(func() error { return c.partitionMetrics(ctx) })
 	g.Go(func() error { return c.imageMetrics(ctx) })
 	g.Go(func() error { return c.projectMetrics(ctx) })
+	g.Go(func() error { return c.componentMetrics(ctx) })
 	g.Go(func() error { return c.switchMetrics(ctx) })
 	g.Go(func() error { return c.machineMetrics(ctx) })
 
@@ -336,65 +358,76 @@ func (c *collector) storeGaugeTimestamp(ts time.Time, desc *prometheus.Desc, val
 }
 
 func (c *collector) networkMetrics(ctx context.Context) error {
-	resp, err := c.client.Network().ListNetworks(network.NewListNetworksParams().WithContext(ctx), nil)
+	resp, err := c.client.Adminv2().Network().List(ctx, &adminv2.NetworkServiceListRequest{})
 	if err != nil {
 		return fmt.Errorf("error retrieving networks: %w", err)
 	}
 
-	for _, nw := range resp.Payload {
-		if nw.Privatesuper == nil || nw.Nat == nil || nw.Underlay == nil || nw.ID == nil {
-			continue
+	for _, nw := range resp.Networks {
+		var (
+			nwID         = nw.Id
+			nat          = nw.NatType == apiv2.NATType_NAT_TYPE_IPV4_MASQUERADE
+			underlay     = nw.Type == apiv2.NetworkType_NETWORK_TYPE_UNDERLAY
+			prefixes     = strings.Join(nw.Prefixes, ",")
+			destPrefixes = strings.Join(nw.DestinationPrefixes, ",")
+			vrf          = ""
+
+			isSuperNetwork bool
+			clusterId      = ""
+		)
+		if nw.Vrf != nil {
+			vrf = fmt.Sprintf("%d", *nw.Vrf)
 		}
 
-		var (
-			nwID         = pointer.SafeDeref(nw.ID)
-			privateSuper = fmt.Sprintf("%t", *nw.Privatesuper)
-			nat          = fmt.Sprintf("%t", *nw.Nat)
-			underlay     = fmt.Sprintf("%t", *nw.Underlay)
-			prefixes     = strings.Join(nw.Prefixes, ",")
-			destPrefixes = strings.Join(nw.Destinationprefixes, ",")
-			vrf          = fmt.Sprintf("%d", nw.Vrf)
-			clusterId    = ""
+		if nw.Meta != nil && nw.Meta.Labels != nil && nw.Meta.Labels.Labels != nil {
+			if id, ok := nw.Meta.Labels.Labels[tag.ClusterID]; ok {
+				clusterId = id
+			}
+		}
+
+		if nw.Type == apiv2.NetworkType_NETWORK_TYPE_SUPER || nw.Type == apiv2.NetworkType_NETWORK_TYPE_SUPER_NAMESPACED {
+			isSuperNetwork = true
+		}
+
+		c.storeGauge(metalNetworkInfo, 1.0, nwID,
+			pointer.SafeDeref(nw.Name),
+			pointer.SafeDeref(nw.Project),
+			pointer.SafeDeref(nw.Description),
+			pointer.SafeDeref(nw.Partition),
+			vrf,
+			prefixes,
+			destPrefixes,
+			pointer.SafeDeref(nw.ParentNetwork),
+			strconv.FormatBool(isSuperNetwork),
+			strconv.FormatBool(nat),
+			strconv.FormatBool(underlay),
+			clusterId,
 		)
 
-		if id, ok := nw.Labels[metaltag.ClusterID]; ok {
-			clusterId = id
-		}
-
-		c.storeGauge(metalNetworkInfo, 1.0, nwID, nw.Name, nw.Projectid, nw.Description, nw.Partitionid, vrf, prefixes, destPrefixes, nw.Parentnetworkid, privateSuper, nat, underlay, clusterId)
-
-		if nw.Usage == nil {
+		if nw.Consumption == nil || nw.Consumption.Ipv4 == nil {
 			continue
 		}
 
-		c.storeGauge(metalNetworkUsedIPs, float64(pointer.SafeDeref(nw.Usage.UsedIps)), nwID)
-		c.storeGauge(metalNetworkAvailableIps, float64(pointer.SafeDeref(nw.Usage.AvailableIps)), nwID)
-		c.storeGauge(metalNetworkUsedPrefixes, float64(pointer.SafeDeref(nw.Usage.UsedPrefixes)), nwID)
-		c.storeGauge(metalNetworkAvailablePrefixes, float64(pointer.SafeDeref(nw.Usage.AvailablePrefixes)), nwID)
+		c.storeGauge(metalNetworkUsedIPs, float64(nw.Consumption.Ipv4.UsedIps), nwID)
+		c.storeGauge(metalNetworkAvailableIps, float64(nw.Consumption.Ipv4.AvailableIps), nwID)
+		c.storeGauge(metalNetworkUsedPrefixes, float64(nw.Consumption.Ipv4.UsedPrefixes), nwID)
+		c.storeGauge(metalNetworkAvailablePrefixes, float64(nw.Consumption.Ipv4.AvailablePrefixes), nwID)
 	}
 
 	return nil
 }
 
 func (c *collector) partitionMetrics(ctx context.Context) error {
-	resp, err := c.client.Partition().PartitionCapacity(partition.NewPartitionCapacityParams().WithBody(&models.V1PartitionCapacityRequest{}).WithContext(ctx), nil)
+	resp, err := c.client.Adminv2().Partition().Capacity(ctx, &adminv2.PartitionServiceCapacityRequest{})
 	if err != nil {
 		return fmt.Errorf("error retrieving partitions: %w", err)
 	}
 
-	for _, p := range resp.Payload {
-		if p.ID == nil {
-			continue
-		}
-
-		for _, s := range p.Servers {
-			if s.Size == nil {
-				continue
-			}
-
+	for _, p := range resp.PartitionCapacity {
+		for _, s := range p.MachineSizeCapacities {
 			var (
-				pID  = pointer.SafeDeref(p.ID)
-				size = pointer.SafeDeref(s.Size)
+				pID  = p.Partition
+				size = s.Size
 			)
 
 			c.storeGauge(metalPartitionCapacityTotal, float64(s.Total), pID, size)
@@ -404,7 +437,7 @@ func (c *collector) partitionMetrics(ctx context.Context) error {
 			c.storeGauge(metalPartitionCapacityAllocatable, float64(s.Allocatable), pID, size)
 			c.storeGauge(metalPartitionCapacityFaulty, float64(s.Faulty), pID, size)
 			c.storeGauge(metalPartitionCapacityReservationsTotal, float64(s.Reservations), pID, size)
-			c.storeGauge(metalPartitionCapacityReservationsUsed, float64(s.Usedreservations), pID, size)
+			c.storeGauge(metalPartitionCapacityReservationsUsed, float64(s.UsedReservations), pID, size)
 			c.storeGauge(metalPartitionCapacityPhonedHome, float64(s.PhonedHome), pID, size)
 			c.storeGauge(metalPartitionCapacityUnavailable, float64(s.Unavailable), pID, size)
 			c.storeGauge(metalPartitionCapacityOther, float64(s.Other), pID, size)
@@ -415,67 +448,123 @@ func (c *collector) partitionMetrics(ctx context.Context) error {
 }
 
 func (c *collector) imageMetrics(ctx context.Context) error {
-	resp, err := c.client.Image().ListImages(image.NewListImagesParams().WithShowUsage(pointer.Pointer(true)).WithContext(ctx), nil)
+	resp, err := c.client.Adminv2().Image().Usage(ctx, &adminv2.ImageServiceUsageRequest{})
 	if err != nil {
 		return fmt.Errorf("error retrieving images: %w", err)
 	}
 
-	for _, i := range resp.Payload {
-		if i.ID == nil {
-			continue
+	for _, i := range resp.ImageUsage {
+		var imageFeatures []string
+		for _, feature := range i.Image.Features {
+			featureString, err := enum.GetStringValue(feature)
+			if err != nil {
+				continue
+			}
+			imageFeatures = append(imageFeatures, *featureString)
 		}
-
 		var (
-			id             = pointer.SafeDeref(i.ID)
-			usage          = len(i.Usedby)
-			created        = fmt.Sprintf("%d", time.Time(i.Created).Unix())
-			expirationDate = fmt.Sprintf("%d", time.Time(pointer.SafeDeref(i.ExpirationDate)).Unix())
-			features       = strings.Join(i.Features, ",")
+			id             = i.Image.Id
+			usage          = len(i.UsedBy)
+			created        = fmt.Sprintf("%d", i.Image.Meta.CreatedAt.AsTime().Unix())
+			expirationDate = fmt.Sprintf("%d", i.Image.ExpiresAt.AsTime().Unix())
+			features       = strings.Join(imageFeatures, ",")
 		)
 
-		c.storeGauge(metalImageUsedTotal, float64(usage), id, i.Name, i.Classification, created, expirationDate, features)
+		classification, err := enum.GetStringValue(i.Image.Classification)
+		if err != nil {
+			return fmt.Errorf("unable to get image classification string: %w", err)
+		}
+
+		c.storeGauge(metalImageUsedTotal, float64(usage), id, *i.Image.Name, *classification, created, expirationDate, features)
 	}
 
 	return nil
 }
 
 func (c *collector) projectMetrics(ctx context.Context) error {
-	resp, err := c.client.Project().ListProjects(project.NewListProjectsParams().WithContext(ctx), nil)
+	resp, err := c.client.Adminv2().Project().List(ctx, &adminv2.ProjectServiceListRequest{})
 	if err != nil {
 		return fmt.Errorf("error retrieving images: %w", err)
 	}
 
-	for _, p := range resp.Payload {
-		c.storeGauge(metalProjectInfo, float64(1.0), p.Meta.ID, p.Name, p.TenantID)
+	for _, p := range resp.Projects {
+		c.storeGauge(metalProjectInfo, float64(1.0), p.Uuid, p.Name, p.Tenant)
+	}
+
+	return nil
+}
+
+func (c *collector) componentMetrics(ctx context.Context) error {
+	resp, err := c.client.Adminv2().Component().List(ctx, &adminv2.ComponentServiceListRequest{})
+	if err != nil {
+		return fmt.Errorf("error retrieving components: %w", err)
+	}
+
+	for _, component := range resp.Components {
+		typeString, err := enum.GetStringValue(component.Type)
+		if err != nil {
+			return fmt.Errorf("unable to get component type string: %w", err)
+		}
+
+		var (
+			version    = pointer.SafeDeref(component.Version).Version
+			revision   = pointer.SafeDeref(component.Version).Revision
+			gitSHA1    = pointer.SafeDeref(component.Version).GitSha1
+			startedAt  = component.StartedAt.AsTime()
+			reportedAt = component.ReportedAt.AsTime()
+			interval   = component.Interval.AsDuration()
+			up         = 1.0
+		)
+
+		if interval > 0 && time.Since(reportedAt) > interval {
+			up = 0.0
+		}
+
+		c.storeGauge(metalComponentInfo, 1.0, component.Uuid, *typeString, component.Identifier, version, revision, gitSHA1,
+			fmt.Sprintf("%d", startedAt.Unix()), fmt.Sprintf("%d", reportedAt.Unix()), interval.String())
+		c.storeGauge(metalComponentUp, up, component.Uuid, *typeString, component.Identifier)
+
+		if token := component.Token; token != nil && token.Expires != nil {
+			c.storeGauge(metalComponentTokenLifetime, time.Until(token.Expires.AsTime()).Seconds(),
+				component.Uuid, *typeString, component.Identifier, token.Uuid, token.User)
+		}
 	}
 
 	return nil
 }
 
 func (c *collector) switchMetrics(ctx context.Context) error {
-	resp, err := c.client.SwitchOperations().ListSwitches(switch_operations.NewListSwitchesParams().WithContext(ctx), nil)
+	resp, err := c.client.Adminv2().Switch().List(ctx, &adminv2.SwitchServiceListRequest{})
 	if err != nil {
 		return fmt.Errorf("error retrieving switches: %w", err)
 	}
 
-	for _, s := range resp.Payload {
+	for _, s := range resp.Switches {
 		var (
-			lastSync      = time.Time(pointer.SafeDeref(pointer.SafeDeref(s.LastSync).Time))
-			lastSyncError = time.Time(pointer.SafeDeref(pointer.SafeDeref(s.LastSyncError).Time))
+			lastSync      = pointer.SafeDeref(s.LastSync).Time.AsTime()
+			lastSyncError = pointer.SafeDeref(s.LastSyncError).Time.AsTime()
 
 			syncFailed              = 0.0
-			lastSyncDurationMs      = float64(time.Duration(pointer.SafeDeref(pointer.SafeDeref(s.LastSync).Duration)).Milliseconds())
-			lastSyncErrorDurationMs = float64(time.Duration(pointer.SafeDeref(pointer.SafeDeref(s.LastSyncError).Duration)).Milliseconds())
+			lastSyncDurationMs      = float64(pointer.SafeDeref(s.LastSync).Duration.AsDuration().Milliseconds())
+			lastSyncErrorDurationMs = float64(pointer.SafeDeref(s.LastSyncError).Duration.AsDuration().Milliseconds())
 
-			partitionID = pointer.SafeDeref(pointer.SafeDeref(s.Partition).ID)
-			rackID      = pointer.SafeDeref(s.RackID)
-			osVendor    = pointer.SafeDeref(s.Os).Vendor
+			partitionID = s.Partition
+			rackID      = pointer.SafeDeref(s.Rack)
+			osVendor    = ""
 			osVersion   = pointer.SafeDeref(s.Os).Version
 			// metal core version is very long: v0.9.1 (1d5e42ea), tags/v0.9.1-0-g1d5e42e, go1.20.5
 			metalCoreVersion = strings.Split(pointer.SafeDeref(s.Os).MetalCoreVersion, ",")[0]
 			metalCoreUp      = 1.0
-			managementIP     = s.ManagementIP
+			managementIP     = s.ManagementIp
 		)
+
+		if s.Os != nil {
+			vendor, err := enum.GetStringValue(s.Os.Vendor)
+			if err != nil {
+				return fmt.Errorf("unable to get switch os vendor string: %w", err)
+			}
+			osVendor = *vendor
+		}
 
 		if lastSyncError.After(lastSync) {
 			syncFailed = 1.0
@@ -487,15 +576,15 @@ func (c *collector) switchMetrics(ctx context.Context) error {
 			metalCoreUp = 0.0
 		}
 
-		c.storeGauge(metalSwitchInfo, 1.0, s.Name, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
-		c.storeGauge(metalSwitchMetalCoreUp, metalCoreUp, s.Name, partitionID, rackID)
-		c.storeGauge(metalSwitchSyncFailed, syncFailed, s.Name, partitionID, rackID)
-		c.storeGaugeTimestamp(lastSync, metalSwitchSyncDurationsMs, lastSyncDurationMs, s.Name, partitionID, rackID)
+		c.storeGauge(metalSwitchInfo, 1.0, s.Id, partitionID, rackID, metalCoreVersion, osVendor, osVersion, managementIP)
+		c.storeGauge(metalSwitchMetalCoreUp, metalCoreUp, s.Id, partitionID, rackID)
+		c.storeGauge(metalSwitchSyncFailed, syncFailed, s.Id, partitionID, rackID)
+		c.storeGaugeTimestamp(lastSync, metalSwitchSyncDurationsMs, lastSyncDurationMs, s.Id, partitionID, rackID)
 
-		for _, conn := range s.Connections {
-			c.storeGauge(metalSwitchInterfaceInfo, 1.0, s.Name, pointer.SafeDeref(pointer.SafeDeref(conn.Nic).Name), conn.MachineID, partitionID)
+		for _, conn := range s.MachineConnections {
+			c.storeGauge(metalSwitchInterfaceInfo, 1.0, s.Id, pointer.SafeDeref(conn.Nic).Name, conn.MachineId, partitionID)
 			if conn.Nic.BgpPortState != nil {
-				c.storeGauge(switchInterfaceBGPTimeStampEstablished, float64(pointer.SafeDeref(conn.Nic.BgpPortState.BgpTimerUpEstablished)), s.Name, pointer.SafeDeref(pointer.SafeDeref(conn.Nic).Name), conn.MachineID, partitionID)
+				c.storeGauge(switchInterfaceBGPTimeStampEstablished, float64(pointer.SafeDeref(conn.Nic.BgpPortState.BgpTimerUpEstablished).Seconds), s.Id, pointer.SafeDeref(conn.Nic).Name, conn.MachineId, partitionID)
 			}
 
 		}
@@ -505,48 +594,68 @@ func (c *collector) switchMetrics(ctx context.Context) error {
 }
 
 func (c *collector) machineMetrics(ctx context.Context) error {
-	machines, err := c.client.Machine().FindIPMIMachines(machine.NewFindIPMIMachinesParams().WithBody(&models.V1MachineFindRequest{}).WithContext(ctx), nil)
+	machines, err := c.client.Adminv2().Machine().List(ctx, &adminv2.MachineServiceListRequest{})
 	if err != nil {
 		return fmt.Errorf("error retrieving machines: %w", err)
 	}
 
-	allIssues, err := c.client.Machine().ListIssues(machine.NewListIssuesParams().WithContext(ctx), nil)
+	machineBMCs, err := c.client.Adminv2().Machine().ListBMC(ctx, &adminv2.MachineServiceListBMCRequest{})
+	if err != nil {
+		return fmt.Errorf("error retrieving machine bmcs: %w", err)
+	}
+
+	bmcs := make(map[string]*apiv2.MachineBMCDetails)
+	for _, machineBMC := range machineBMCs.BmcDetails {
+		bmcs[machineBMC.Uuid] = machineBMC
+	}
+
+	allIssues, err := c.client.Adminv2().Machine().Issues(ctx, &adminv2.MachineServiceIssuesRequest{})
 	if err != nil {
 		return fmt.Errorf("error retrieving machine issues list: %w", err)
 	}
 
-	issues, err := c.client.Machine().Issues(machine.NewIssuesParams().WithBody(&models.V1MachineIssuesRequest{
-		LastErrorThreshold: pointer.Pointer(int64(1 * time.Hour)),
-	}).WithContext(ctx), nil)
+	issues, err := c.client.Adminv2().Machine().Issues(ctx, &adminv2.MachineServiceIssuesRequest{
+		Query: &apiv2.MachineIssuesQuery{
+			LastErrorThreshold: durationpb.New(time.Hour),
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("error retrieving machine issues: %w", err)
 	}
 
 	issuesByMachineID := map[string][]string{}
-	for _, issue := range issues.Payload {
-		if issue.Machineid == nil {
-			continue
+	for _, issue := range issues.Issues {
+		var issueTypes []string
+		for _, i := range issue.Issues {
+			typeString, err := enum.GetStringValue(i.Type)
+			if err != nil {
+				continue
+			}
+			issueTypes = append(issueTypes, *typeString)
 		}
-
-		issuesByMachineID[*issue.Machineid] = issue.Issues
+		issuesByMachineID[issue.Uuid] = issueTypes
 	}
 
 	allIssuesByID := map[string]bool{}
-	for _, issue := range allIssues.Payload {
-		if issue.ID == nil {
-			continue
+	for _, issue := range allIssues.Issues {
+		for _, i := range issue.Issues {
+			issueID, err := enum.GetStringValue(i.Type)
+			if err != nil {
+				return fmt.Errorf("unable to get issue string: %w", err)
+			}
+			if _, ok := allIssuesByID[*issueID]; ok {
+				continue
+			}
+			allIssuesByID[*issueID] = true
+			severityString, err := enum.GetStringValue(i.Severity)
+			if err != nil {
+				return fmt.Errorf("unable to get issue severity string: %w", err)
+			}
+			c.storeGauge(metalMachineIssuesInfo, 1.0, *issueID, i.Description, *severityString, i.ReferenceUrl)
 		}
-
-		allIssuesByID[*issue.ID] = true
-
-		c.storeGauge(metalMachineIssuesInfo, 1.0, *issue.ID, pointer.SafeDeref(issue.Description), pointer.SafeDeref(issue.Severity), pointer.SafeDeref(issue.RefURL))
 	}
 
-	for _, m := range machines.Payload {
-		if m.ID == nil {
-			continue
-		}
-
+	for _, m := range machines.Machines {
 		var (
 			partitionID = ""
 			role        = ""
@@ -557,39 +666,48 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 			imageId     = "NOTALLOCATED"
 		)
 
-		if m.State != nil && m.State.Value != nil && *m.State.Value != "" {
-			state = *m.State.Value
+		if m.Status != nil && m.Status.Condition != nil {
+			stateString, err := enum.GetStringValue(m.Status.Condition.State)
+			if err != nil {
+				return err
+			}
+			state = strings.ToUpper(*stateString)
 		}
 
 		if m.Allocation != nil {
-			if m.Allocation.Role != nil {
-				role = *m.Allocation.Role
+			roleString, err := enum.GetStringValue(m.Allocation.AllocationType)
+			if err != nil {
+				return err
+			}
+			role = *roleString
+
+			hostname = m.Allocation.Hostname
+
+			if m.Allocation.Image != nil {
+				imageId = m.Allocation.Image.Id
 			}
 
-			if m.Allocation.Hostname != nil {
-				hostname = *m.Allocation.Hostname
-			}
-
-			if m.Allocation.Image != nil && m.Allocation.Image.ID != nil {
-				imageId = *m.Allocation.Image.ID
-			}
-
-			tm := metaltag.NewTagMap(m.Tags)
-			if id, ok := tm.Value(metaltag.ClusterID); ok {
-				clusterID = id
-			}
-			if asn, ok := tm.Value(metaltag.MachineNetworkPrimaryASN); ok {
-				primaryASN = asn
+			if m.Meta.Labels != nil && m.Meta.Labels.Labels != nil {
+				if id, ok := m.Meta.Labels.Labels[tag.ClusterID]; ok {
+					clusterID = id
+				}
+				if asn, ok := m.Meta.Labels.Labels[tag.MachineNetworkPrimaryASN]; ok {
+					primaryASN = asn
+				}
 			}
 		}
-		if m.Partition != nil && m.Partition.ID != nil {
-			partitionID = *m.Partition.ID
+		if m.Partition != nil {
+			partitionID = m.Partition.Id
 		}
 
-		if m.Ipmi != nil {
-			if m.Ipmi.Powerstate != nil {
-				var powerstate float64
-				switch *m.Ipmi.Powerstate {
+		if machineBMC, ok := bmcs[m.Uuid]; ok {
+			if machineBMC.BmcReport == nil {
+				continue
+			}
+			bmcReport := machineBMC.BmcReport
+			var powerstate float64
+			if bmcReport.Bmc != nil {
+				switch bmcReport.Bmc.PowerState {
 				case "ON":
 					powerstate = 1
 				case "OFF":
@@ -597,52 +715,58 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 				default:
 					powerstate = -1
 				}
-
-				c.storeGauge(metalMachinePowerState, powerstate, *m.ID)
+				c.storeGauge(metalMachinePowerState, powerstate, m.Uuid)
 			}
 
-			if m.Ipmi.Powersupplies != nil {
-				c.storeGauge(metalMachinePowerSuppliesTotal, float64(len(m.Ipmi.Powersupplies)), *m.ID)
+			c.storeGauge(metalMachinePowerSuppliesTotal, float64(len(bmcReport.PowerSupplies)), m.Uuid)
 
-				healthy := 0
-				for _, ps := range m.Ipmi.Powersupplies {
-					if ps.Status != nil && ps.Status.Health != nil && *ps.Status.Health == "OK" {
-						healthy++
-					}
+			healthy := 0
+			for _, ps := range bmcReport.PowerSupplies {
+				if ps.Health == "OK" {
+					healthy++
 				}
-
-				c.storeGauge(metalMachinePowerSuppliesHealthy, float64(healthy), *m.ID)
 			}
 
-			if m.Ipmi.Powermetric != nil && m.Ipmi.Powermetric.Averageconsumedwatts != nil {
-				c.storeGauge(metalMachinePowerUsage, float64(pointer.SafeDeref(m.Ipmi.Powermetric.Averageconsumedwatts)), *m.ID)
+			c.storeGauge(metalMachinePowerSuppliesHealthy, float64(healthy), m.Uuid)
+
+			if bmcReport.PowerMetric != nil {
+				c.storeGauge(metalMachinePowerUsage, float64(bmcReport.PowerMetric.AverageConsumedWatts), m.Uuid)
 			}
 
 			size := "UNKNOWN"
 			if m.Size != nil {
-				size = m.Size.Name
+				size = m.Size.Id
 			}
 
-			if m.Bios != nil && m.Ipmi.Fru != nil {
-				c.storeGauge(metalMachineHardwareInfo, 1.0, *m.ID, partitionID, size, pointer.SafeDeref(m.Ipmi.Bmcversion),
-					pointer.SafeDeref(m.Bios.Version), m.Ipmi.Fru.ChassisPartNumber, m.Ipmi.Fru.ChassisPartSerial, m.Ipmi.Fru.BoardMfg, m.Ipmi.Fru.BoardMfgSerial, m.Ipmi.Fru.BoardPartNumber,
-					m.Ipmi.Fru.ProductManufacturer, m.Ipmi.Fru.ProductPartNumber, m.Ipmi.Fru.ProductSerial)
+			if bmcReport.Fru != nil {
+				c.storeGauge(metalMachineHardwareInfo, 1.0, m.Uuid, partitionID, size,
+					pointer.SafeDeref(bmcReport.Bmc).Version,
+					pointer.SafeDeref(bmcReport.Bios).Version,
+					pointer.SafeDeref(bmcReport.Fru.ChassisPartNumber),
+					pointer.SafeDeref(bmcReport.Fru.ChassisPartSerial),
+					pointer.SafeDeref(bmcReport.Fru.BoardMfg),
+					pointer.SafeDeref(bmcReport.Fru.BoardMfgSerial),
+					pointer.SafeDeref(bmcReport.Fru.BoardPartNumber),
+					pointer.SafeDeref(bmcReport.Fru.ProductManufacturer),
+					pointer.SafeDeref(bmcReport.Fru.ProductPartNumber),
+					pointer.SafeDeref(bmcReport.Fru.ProductSerial),
+				)
 			}
 		}
 
-		c.storeGauge(metalMachineAllocationInfo, 1.0, *m.ID, partitionID, hostname, clusterID, primaryASN, role, state, imageId)
+		c.storeGauge(metalMachineAllocationInfo, 1.0, m.Uuid, partitionID, hostname, clusterID, primaryASN, role, state, imageId)
 
 		for issueID := range allIssuesByID {
-			issues, ok := issuesByMachineID[*m.ID]
+			issues, ok := issuesByMachineID[m.Uuid]
 			if !ok {
-				c.storeGauge(metalMachineIssues, 0.0, *m.ID, issueID)
+				c.storeGauge(metalMachineIssues, 0.0, m.Uuid, issueID)
 				continue
 			}
 
 			if slices.Contains(issues, issueID) {
-				c.storeGauge(metalMachineIssues, 1.0, *m.ID, issueID)
+				c.storeGauge(metalMachineIssues, 1.0, m.Uuid, issueID)
 			} else {
-				c.storeGauge(metalMachineIssues, 0.0, *m.ID, issueID)
+				c.storeGauge(metalMachineIssues, 0.0, m.Uuid, issueID)
 			}
 		}
 	}

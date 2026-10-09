@@ -1,4 +1,4 @@
-FROM scratch
+FROM gcr.io/distroless/static-debian13:nonroot
 COPY bin/metal-metrics-exporter /metal-metrics-exporter
 USER 999
 ENTRYPOINT ["/metal-metrics-exporter"]
