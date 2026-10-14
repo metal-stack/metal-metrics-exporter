@@ -48,9 +48,12 @@ spec:
             image: ghcr.io/metal-stack/metal-token-refresher
             env:
             - name: METAL_APISERVER_URL
-              value: http://metal-apiserver:8080
+              valueFrom:
+                secretKeyRef:
+                  name: metal-metrics-exporter-config
+                  key: url
             - name: TOKEN_SECRET_NAMESPACE
-              value: "metal-control-plane"
+              value: "monitoring"
             - name: TOKEN_SECRET_NAME
               value: "metal-metrics-exporter-config"
             - name: TOKEN_SECRET_KEY
