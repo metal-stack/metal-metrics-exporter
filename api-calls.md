@@ -11,4 +11,5 @@
 |         | /metalstack.admin.v2.PartitionService/Capacity |
 |         | /metalstack.admin.v2.ProjectService/List       |
 |         | /metalstack.admin.v2.SwitchService/List        |
+|         | /metalstack.api.v2.TokenService/Refresh        |
 |         | /metalstack.infra.v2.ComponentService/Ping     |
