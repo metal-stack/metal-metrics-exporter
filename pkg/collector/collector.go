@@ -188,7 +188,7 @@ var (
 	metalComponentInfo = prometheus.NewDesc(
 		"metal_component_info",
 		"Provide information about components connected to the metal-apiserver",
-		[]string{"uuid", "type", "identifier", "version", "revision", "gitSHA1", "startedAt", "reportedAt", "interval"},
+		[]string{"uuid", "type", "identifier", "version", "revision", "gitSHA1", "interval"},
 		nil,
 	)
 	metalComponentUp = prometheus.NewDesc(
@@ -510,7 +510,6 @@ func (c *collector) componentMetrics(ctx context.Context) error {
 			version    = pointer.SafeDeref(component.Version).Version
 			revision   = pointer.SafeDeref(component.Version).Revision
 			gitSHA1    = pointer.SafeDeref(component.Version).GitSha1
-			startedAt  = component.StartedAt.AsTime()
 			reportedAt = component.ReportedAt.AsTime()
 			interval   = component.Interval.AsDuration()
 			up         = 1.0
@@ -520,8 +519,7 @@ func (c *collector) componentMetrics(ctx context.Context) error {
 			up = 0.0
 		}
 
-		c.storeGauge(metalComponentInfo, 1.0, component.Uuid, *typeString, component.Identifier, version, revision, gitSHA1,
-			fmt.Sprintf("%d", startedAt.Unix()), fmt.Sprintf("%d", reportedAt.Unix()), interval.String())
+		c.storeGauge(metalComponentInfo, 1.0, component.Uuid, *typeString, component.Identifier, version, revision, gitSHA1, interval.String())
 		c.storeGauge(metalComponentUp, up, component.Uuid, *typeString, component.Identifier)
 
 		if token := component.Token; token != nil && token.Expires != nil {

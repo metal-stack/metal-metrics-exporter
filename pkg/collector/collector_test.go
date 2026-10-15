@@ -345,8 +345,8 @@ func TestComponentMetrics(t *testing.T) {
 	compare(t, c, `
 # HELP metal_component_info Provide information about components connected to the metal-apiserver
 # TYPE metal_component_info gauge
-metal_component_info{gitSHA1="",identifier="identifier-2",interval="2000000h0m0s",reportedAt="4000",revision="",startedAt="3000",type="metal-metrics-exporter",uuid="component-2",version="v2.0.0"} 1
-metal_component_info{gitSHA1="abc123",identifier="identifier-1",interval="1h0m0s",reportedAt="2000",revision="rev-1",startedAt="1000",type="metal-metrics-exporter",uuid="component-1",version="v1.0.0"} 1
+metal_component_info{gitSHA1="",identifier="identifier-2",interval="2000000h0m0s",revision="",type="metal-metrics-exporter",uuid="component-2",version="v2.0.0"} 1
+metal_component_info{gitSHA1="abc123",identifier="identifier-1",interval="1h0m0s",revision="rev-1",type="metal-metrics-exporter",uuid="component-1",version="v1.0.0"} 1
 # HELP metal_component_up 1 when the component reported within its ping interval, otherwise 0
 # TYPE metal_component_up gauge
 metal_component_up{identifier="identifier-1",type="metal-metrics-exporter",uuid="component-1"} 0
