@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
-	metalgo "github.com/metal-stack/metal-go"
+	apiv2client "github.com/metal-stack/api/go/client"
+	apiv2 "github.com/metal-stack/api/go/metalstack/api/v2"
 	"github.com/metal-stack/metal-metrics-exporter/pkg/collector"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,18 +27,25 @@ func main() {
 		log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 		url              = os.Getenv("METAL_API_URL")
-		hmac             = os.Getenv("METAL_API_HMAC")
-		authType         = envOrDefault("METAL_API_AUTH_TYPE", "Metal-Admin") // backward compatibility, use "Metal-View" for read-only access
-		fetchIntervalEnv = envOrDefault("FETCH_INTERVAL", "90s")              // time to sleep after every metrics fetch
-		updateTimeoutEnv = envOrDefault("UPDATE_TIMEOUT", "60s")              // maximum time for metal-api to respond to all our requests until context gets cancelled
+		tokenFile        = os.Getenv("METAL_API_TOKEN_FILE")
+		fetchIntervalEnv = envOrDefault("FETCH_INTERVAL", "90s") // time to sleep after every metrics fetch
+		updateTimeoutEnv = envOrDefault("UPDATE_TIMEOUT", "60s") // maximum time for metal-api to respond to all our requests until context gets cancelled
 
 		err error
 	)
-	client, err := metalgo.NewDriver(url, "", hmac, metalgo.AuthType(authType))
+	client, err := apiv2client.New(&apiv2client.DialConfig{
+		BaseURL:                 url,
+		TokenFile:               tokenFile,
+		TokenFileRereadDuration: 5 * time.Minute,
+		Log:                     log,
+	})
 	if err != nil {
 		log.Error("error creating client", "error", err)
 		os.Exit(1)
 	}
+	client.Ping(context.Background(), &apiv2client.PingConfig{
+		ComponentType: apiv2.ComponentType_COMPONENT_TYPE_METAL_METRICS_EXPORTER,
+	})
 
 	fetchInterval, err := time.ParseDuration(fetchIntervalEnv)
 	if err != nil {
