@@ -3,8 +3,8 @@ module github.com/metal-stack/metal-metrics-exporter
 go 1.27
 
 require (
-	connectrpc.com/connect v1.21.0
-	github.com/metal-stack/api v0.8.1
+	connectrpc.com/connect v1.21.1
+	github.com/metal-stack/api v0.8.2
 	github.com/metal-stack/metal-lib v0.26.3
 	github.com/prometheus/client_golang v1.25.0
 	golang.org/x/sync v0.24.0
@@ -18,7 +18,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/klauspost/compress v1.20.1 // indirect
+	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/klauspost/connect-compress/v2 v2.1.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/minio/minlz v1.2.2 // indirect
