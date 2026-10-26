@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	connectrpc.com/connect v1.21.1
-	github.com/metal-stack/api v0.8.3
+	github.com/metal-stack/api v0.8.4
 	github.com/metal-stack/metal-lib v0.26.4
 	github.com/prometheus/client_golang v1.25.0
 	golang.org/x/sync v0.24.0
