@@ -434,6 +434,9 @@ metal_switch_sync_failed{partition="partition-1",rackid="rack-1",switchname="swi
 }
 
 func TestMachineMetrics(t *testing.T) {
+	partition := &apiv2.Partition{
+		Id: "p1",
+	}
 	machine := &apiv2.Machine{
 		Uuid: "machine-1",
 		Meta: &apiv2.Meta{Labels: &apiv2.Labels{Labels: map[string]string{
@@ -494,7 +497,13 @@ func TestMachineMetrics(t *testing.T) {
 
 	c := testCollector(t,
 		apiv2client.ClientCall{
-			WantRequest: &adminv2.MachineServiceListRequest{},
+			WantRequest: &apiv2.PartitionServiceListRequest{},
+			WantResponse: func() connect.AnyResponse {
+				return connect.NewResponse(&apiv2.PartitionServiceListResponse{Partitions: []*apiv2.Partition{partition}})
+			},
+		},
+		apiv2client.ClientCall{
+			WantRequest: &adminv2.MachineServiceListRequest{Query: &apiv2.MachineQuery{Partition: &partition.Id}},
 			WantResponse: func() connect.AnyResponse {
 				return connect.NewResponse(&adminv2.MachineServiceListResponse{Machines: []*apiv2.Machine{machine}})
 			},

@@ -592,9 +592,18 @@ func (c *collector) switchMetrics(ctx context.Context) error {
 }
 
 func (c *collector) machineMetrics(ctx context.Context) error {
-	machines, err := c.client.Adminv2().Machine().List(ctx, &adminv2.MachineServiceListRequest{})
+	partitions, err := c.client.Apiv2().Partition().List(ctx, &apiv2.PartitionServiceListRequest{})
 	if err != nil {
-		return fmt.Errorf("error retrieving machines: %w", err)
+		return fmt.Errorf("error retrieving partitions: %w", err)
+	}
+
+	var machines []*apiv2.Machine
+	for _, partition := range partitions.Partitions {
+		mlr, err := c.client.Adminv2().Machine().List(ctx, &adminv2.MachineServiceListRequest{Query: &apiv2.MachineQuery{Partition: &partition.Id}})
+		if err != nil {
+			return fmt.Errorf("error retrieving machines: %w", err)
+		}
+		machines = append(machines, mlr.Machines...)
 	}
 
 	machineBMCs, err := c.client.Adminv2().Machine().ListBMC(ctx, &adminv2.MachineServiceListBMCRequest{})
@@ -653,7 +662,7 @@ func (c *collector) machineMetrics(ctx context.Context) error {
 		}
 	}
 
-	for _, m := range machines.Machines {
+	for _, m := range machines {
 		var (
 			partitionID = ""
 			role        = ""
